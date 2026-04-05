@@ -84,6 +84,8 @@ Przetestowane modele:
 
 Zanonimizowany dokument mozesz bezpiecznie przeslac do chmurowych uslug AI (Claude, GPT, Gemini).
 
+> **Uwaga (XLSX):** Kwoty i inne wartosci liczbowe sa obecnie zastepowane tokenami tekstowymi (np. `[TH_KWOTA_001]`), nie losowymi liczbami. W arkuszach kalkulacyjnych z formulami (np. `=SUMA()`) formuly nie beda dzialac poprawnie na tokenach. Planujemy zamiane na losowe wartosci liczbowe w przyszlej wersji.
+
 ## De-anonimizacja
 
 1. Przelacz tryb na **De-anonimizacja** (przycisk w naglowku)
