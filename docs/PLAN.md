@@ -17,12 +17,12 @@
 ## Co dalej
 
 ### Krytyczne:
+- [ ] Losowe kwoty zamiast tokenów w XLSX — zachowanie formuł i formatowania (analiza: `docs/ANALIZA-KWOTY-XLSX.md`)
 - [ ] Testy na prawdziwych dokumentach — walidacja skuteczności wykrywania
 - [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi (Windows)
 
 ### Ważne:
 - [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie
-- [ ] Losowe kwoty zamiast tokenów w XLSX — zachowanie formuł i formatowania (analiza: `docs/ANALIZA-KWOTY-XLSX.md`)
 - [ ] Drag & drop — pliki do okna aplikacji
 - [ ] Kopiowanie do schowka — zanonimizowany tekst
 - [x] Profesjonalne ikony — maski teatralne (komedia/tragedia)
@@ -57,6 +57,8 @@
 - ✅ Dynamiczne typy encji — model wymyśla typ → token go odzwierciedla (np. `[TH_NR_ARIMR_001]`)
 - ✅ Wzbogacony prompt NER (przykłady formatów nr dowodu, ARiMR)
 - ✅ Nieznane typy przypisane do kategorii "Numery ID"
+- ✅ Fix korupcji tokenów w XLSX/DOCX — Aho-Corasick single-pass w eksporcie
+- ✅ CI/CD: auto-tag z Cargo.toml, czyszczenie starych artefaktów, auto-release na push do main
 
 ### v0.4.1 (2026-04-05):
 - ✅ Ciemny/jasny motyw UI z autodetekcją systemową (`prefers-color-scheme`)
