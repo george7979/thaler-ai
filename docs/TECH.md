@@ -268,13 +268,42 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
    6. **Fallback regex** — wyciągnięcie pojedynczych obiektów `{"text":"...","type":"..."}` niezależnie od formatowania
 4. **Retry z exponential backoff** — jeśli Ollama nie odpowie, do 3 prób (opóźnienia: 0s → 2s → 4s). Pominięcie chunka po wyczerpaniu prób
 5. **Deduplikacja** po tekście (case-insensitive)
-6. **Filtr kategorii post-hoc** — usunięcie encji z wyłączonych typów (na podstawie checkboxów)
-7. **Tworzenie tokenów** — deterministyczne: ta sama encja → ten sam token
-8. **Zamiana** w tekście — single-pass przez Aho-Corasick (O(n), najdłuższe dopasowania priorytetowe)
+6. **Regex safety net** — deterministyczne wykrywanie wzorców pominiętych przez model (patrz: [Reguły deterministyczne](#reguły-deterministyczne-regex-safety-net))
+7. **Filtr kategorii post-hoc** — usunięcie encji z wyłączonych typów (na podstawie checkboxów)
+8. **Tworzenie tokenów** — deterministyczne: ta sama encja → ten sam token
+9. **Zamiana** w tekście — single-pass przez Aho-Corasick (O(n), najdłuższe dopasowania priorytetowe)
 
 ### Uwaga dot. DOCX:
 - Bielik 11B jest wrażliwy na białe znaki — `\n\n` między akapitami obniża skuteczność z 7 do 1 encji
 - Parser DOCX używa pojedynczego `\n` między akapitami (zachowuje `<w:br/>` i `<w:tab/>`)
+
+---
+
+## Reguły deterministyczne (regex safety net)
+
+Moduł regex działa **po** wykrywaniu przez LLM i **po** deduplikacji — łapie wzorce, które mały model mógł pominąć. Każda reguła to para: wzorzec regex + typ NER. Encje znalezione przez regex nie duplikują się z tymi z LLM (sprawdzanie po `seen` set).
+
+W logach wykrycia regex oznaczone są jako `regex fallback: '<wartość>' → <typ>`.
+
+### Aktywne reguły:
+
+| Wzorzec | Regex | Typ NER | Przykład | Uwagi |
+|---------|-------|---------|----------|-------|
+| Nr dowodu osobistego | `\b[A-Z]{3}\d{6}\b` | OTHER_ID | CYC123456 | 3 wielkie litery + 6 cyfr |
+
+### Jak dodać nową regułę:
+
+W `anonymizer.rs`, tablica `regex_patterns` w funkcji `anonymize()`:
+
+```rust
+let regex_patterns: &[(&str, &str)] = &[
+    (r"\b[A-Z]{3}\d{6}\b", "OTHER_ID"),  // Polish ID card
+    // Nowe reguły dodawać tutaj:
+    // (r"WZORZEC", "TYP_NER"),
+];
+```
+
+**Zasada:** Dodawaj reguły tylko dla wzorców o niskim ryzyku false positive (unikalne formaty, nie ogólne ciągi cyfr).
 
 ---
 

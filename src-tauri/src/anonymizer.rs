@@ -32,7 +32,7 @@ const TYPE_DESCRIPTIONS: &[(&str, &str)] = &[
     ("KRS",         "KRS — numery KRS"),
     ("BANK_ACCOUNT","BANK_ACCOUNT — numery kont bankowych"),
     ("PESEL",       "PESEL — numery PESEL (11 cyfr)"),
-    ("OTHER_ID",    "OTHER_ID — inne identyfikatory"),
+    ("OTHER_ID",    "OTHER_ID — inne identyfikatory (nr dowodu osobistego np. \"ABC123456\", nr ARiMR, numery ewidencyjne)"),
 ];
 
 fn build_ner_prompt(text: &str, enabled_categories: &Option<Vec<String>>) -> (String, Vec<String>) {
@@ -688,6 +688,22 @@ impl Anonymizer {
                 true
             }
         });
+
+        // Regex safety net: catch patterns that small models miss
+        let regex_patterns: &[(&str, &str)] = &[
+            (r"\b[A-Z]{3}\d{6}\b", "OTHER_ID"),  // Polish ID card: ABC123456
+        ];
+        for (pattern, ner_type) in regex_patterns {
+            let re = regex::Regex::new(pattern).unwrap();
+            for m in re.find_iter(text) {
+                let found = m.as_str().to_string();
+                if !seen.contains(&found) {
+                    self.log(&format!("  regex fallback: '{}' → {}", found, ner_type));
+                    all_entities.push(NerEntity { text: found.clone(), entity_type: ner_type.to_string() });
+                    seen.insert(found);
+                }
+            }
+        }
 
         // Post-hoc filter: remove entities of disabled types
         if !allowed_types.is_empty() {
