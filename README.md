@@ -8,6 +8,7 @@ Proste narzedzie do anonimizacji dokumentow z wykorzystaniem lokalnego LLM (Olla
 - Cale przetwarzanie odbywa sie lokalnie przez Ollama — dane nie trafiaja do zadnych uslug chmurowych
 - Jeden plik binarny, zero zaleznosci
 
+![Thaler AI — screenshot](docs/img/screenshot.png)
 
 ## Wymagania
 
