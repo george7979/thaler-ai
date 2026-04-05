@@ -25,3 +25,21 @@ regex = "1"
 aho-corasick = "1"
 open = "5"
 bytes = "1"
+
+[package.metadata.deb]
+maintainer = "Jerzy Maczewski"
+section = "utils"
+priority = "optional"
+depends = "libc6"
+extended-description = "Detects sensitive entities and replaces them with deterministic tokens.\nAll processing is local — data never leaves the machine."
+assets = [
+    ["target/release/thaler-ai", "usr/bin/", "755"],
+    ["assets/thaler-ai.desktop", "usr/share/applications/", "644"],
+    ["icons/128x128.png", "usr/share/pixmaps/thaler-ai.png", "644"],
+]
+
+[package.metadata.wix]
+upgrade-guid = "B36177BE-EA4D-44FB-B05C-EDDABDAA95CA"
+path-guid = "BFD25009-65A4-4D1E-97F1-0030465D90D6"
+product-icon = "icons/icon.ico"
+license = false

@@ -1,0 +1,91 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  Copyright (C) 2026 Jerzy Maczewski
+  thaler-ai — Document anonymization with local LLM
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+
+    <Product
+        Id='*'
+        Name='Thaler AI'
+        UpgradeCode='B36177BE-EA4D-44FB-B05C-EDDABDAA95CA'
+        Manufacturer='Jerzy Maczewski'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <Package Id='*'
+            Keywords='Installer'
+            Description='Thaler AI — Document anonymization with local LLM'
+            Manufacturer='Jerzy Maczewski'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'/>
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
+        <Property Id='DiskPrompt' Value='Thaler AI Installation'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFilesFolder' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='Thaler AI'>
+                    <Component Id='binary0' Guid='A1B2C3D4-E5F6-7890-ABCD-EF1234567890'>
+                        <File Id='exe0'
+                            Name='thaler-ai.exe'
+                            DiskId='1'
+                            Source='target\release\thaler-ai.exe'
+                            KeyPath='yes'/>
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <Directory Id='ProgramMenuFolder'>
+                <Directory Id='AppProgramsFolder' Name='Thaler AI'/>
+            </Directory>
+        </Directory>
+
+        <DirectoryRef Id='AppProgramsFolder'>
+            <Component Id='AppStartMenuShortcut' Guid='C4D5E6F7-8901-2345-BCDE-F67890123456'>
+                <Shortcut Id='AppStartMenuLink'
+                    Name='Thaler AI'
+                    Description='Document anonymization with local LLM'
+                    Target='[#exe0]'
+                    WorkingDirectory='APPLICATIONFOLDER'/>
+                <RemoveFolder Id='CleanAppProgramsFolder' On='uninstall'/>
+                <RegistryValue Root='HKCU'
+                    Key='Software\ThalerAI'
+                    Name='installed'
+                    Type='integer'
+                    Value='1'
+                    KeyPath='yes'/>
+            </Component>
+        </DirectoryRef>
+
+        <Feature Id='Binaries'
+            Title='Application'
+            Description='Installs Thaler AI binary and Start Menu shortcut.'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+
+            <ComponentRef Id='binary0'/>
+            <ComponentRef Id='AppStartMenuShortcut'/>
+        </Feature>
+
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+        <Icon Id='ProductICO' SourceFile='icons\icon.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductICO'/>
+
+        <UIRef Id='WixUI_FeatureTree'/>
+        <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf'/>
+
+    </Product>
+</Wix>

@@ -131,9 +131,9 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 
 ### Budowanie i dystrybucja:
 - **Build:** `cargo build --release` (w `src-tauri/`)
-- **Linux:** paczka .deb (ręczne dpkg-deb)
-- **Windows:** .exe (planowane przez CI/CD cross-compile)
-- **CI/CD:** GitHub Actions (planowane)
+- **Linux:** .deb via `cargo-deb` (metadane w `Cargo.toml [package.metadata.deb]`)
+- **Windows:** .exe + .msi via `cargo-wix` (WiX template w `wix/main.wxs`)
+- **CI/CD:** GitHub Actions — auto-build na push do `dev` i tag `v*`
 
 ---
 
@@ -298,23 +298,36 @@ cd src-tauri
 cargo build --release    # Binary: target/release/thaler-ai
 ```
 
-### Paczka .deb:
+### Paczka .deb (cargo-deb):
 ```bash
-# Update binary in package dir, then:
-dpkg-deb --build /tmp/thaler-deb thaler-ai_0.4.1_amd64.deb
-sudo dpkg -i thaler-ai_0.4.1_amd64.deb
+cd src-tauri
+cargo deb                # Build + package .deb
+# Output: target/debian/thaler-ai_<version>_amd64.deb
+sudo dpkg -i target/debian/thaler-ai_*.deb
 thaler-ai                # Run — opens browser
 ```
 
-### Wynik budowania:
-```
-src-tauri/target/release/thaler-ai           # Binary (6.4 MB)
-thaler-ai_0.4.1_amd64.deb                   # .deb package (~2.8 MB)
+### Instalator Windows (.msi):
+```bash
+cd src-tauri
+cargo build --release
+cargo wix --no-build     # Package .msi from WiX template
+# Output: target/wix/thaler-ai-<version>-x86_64.msi
 ```
 
-### Infrastruktura:
-- **Maszyna deweloperska:** kompilacja release
-- **GitHub Actions:** planowane — auto-build .deb + .exe przy push do main
+### CI/CD (GitHub Actions):
+- **Trigger:** push do `dev` (pre-release) lub tag `v*` (stabilny release)
+- **Linux job:** `cargo build --release` + `cargo deb --no-build` → .deb
+- **Windows job:** `cargo build --release` + `cargo wix --no-build` → .msi + portable .exe
+- **Artefakty:** GitHub Releases (`dev-latest` pre-release lub wersjonowany release)
+
+### Wynik budowania:
+```
+src-tauri/target/release/thaler-ai           # Binary Linux (~6 MB)
+src-tauri/target/release/thaler-ai.exe       # Binary Windows (~6 MB)
+src-tauri/target/debian/*.deb                # .deb package (~3 MB)
+src-tauri/target/wix/*.msi                   # .msi installer (~6 MB)
+```
 
 ---
 

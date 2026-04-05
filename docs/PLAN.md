@@ -18,7 +18,7 @@
 
 ### Krytyczne:
 - [ ] Testy na prawdziwych dokumentach — walidacja skuteczności wykrywania
-- [ ] GitHub Actions CI/CD — auto-build .deb (Linux) + .exe (Windows)
+- [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi/.exe (Windows)
 
 ### Ważne:
 - [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie

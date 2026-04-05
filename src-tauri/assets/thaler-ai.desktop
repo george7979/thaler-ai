@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Thaler AI
+Comment=Document anonymization with local LLM
+Exec=thaler-ai
+Icon=thaler-ai
+Terminal=false
+Type=Application
+Categories=Utility;

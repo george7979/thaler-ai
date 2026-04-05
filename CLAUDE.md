@@ -41,11 +41,10 @@ Detects sensitive entities (persons, companies, amounts, dates, addresses, IDs) 
 
 ```bash
 cd src-tauri
-cargo build --release   # build binary
+cargo build --release    # build binary
 cargo run --release      # run locally
-
-# Build .deb package (manual) — always build in project directory:
-dpkg-deb --build /tmp/thaler-deb /home/jerzy/cursor/thaler-ai/thaler-ai_<version>_amd64.deb
+cargo deb                # build .deb (Linux) — output: target/debian/*.deb
+cargo wix --no-build     # build .msi (Windows) — output: target/wix/*.msi
 ```
 
 ## API Endpoints

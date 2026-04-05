@@ -13,5 +13,10 @@ src-tauri/gen/
 .vscode/
 .idea/
 
+# Build artifacts (built by CI)
+*.deb
+*.msi
+*.exe
+
 # OS
 .DS_Store

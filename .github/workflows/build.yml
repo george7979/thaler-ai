@@ -1,0 +1,184 @@
+name: Build
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - ".github/workflows/**"
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked || true
+
+      - name: Build release binary
+        working-directory: src-tauri
+        run: cargo build --release
+
+      - name: Build .deb package
+        working-directory: src-tauri
+        run: cargo deb --no-build
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: thaler-ai-linux-deb
+          path: src-tauri/target/debian/*.deb
+          retention-days: 30
+
+      - name: Upload portable binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: thaler-ai-linux-bin
+          path: src-tauri/target/release/thaler-ai
+          retention-days: 30
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        working-directory: src-tauri
+        run: cargo build --release
+
+      - name: Install cargo-wix
+        run: cargo install cargo-wix --locked
+
+      - name: Add WiX Toolset to PATH
+        shell: bash
+        run: echo "${WIX}bin" >> $GITHUB_PATH
+
+      - name: Build .msi installer
+        working-directory: src-tauri
+        run: cargo wix --no-build --nocapture
+
+      - name: Upload portable .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: thaler-ai-windows-exe
+          path: src-tauri/target/release/thaler-ai.exe
+          retention-days: 30
+
+      - name: Upload .msi installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: thaler-ai-windows-msi
+          path: src-tauri/target/wix/*.msi
+          retention-days: 30
+
+  dev-prerelease:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Linux .deb
+        uses: actions/download-artifact@v4
+        with:
+          name: thaler-ai-linux-deb
+          path: linux
+
+      - name: Download Windows .exe
+        uses: actions/download-artifact@v4
+        with:
+          name: thaler-ai-windows-exe
+          path: windows
+
+      - name: Download Windows .msi
+        uses: actions/download-artifact@v4
+        with:
+          name: thaler-ai-windows-msi
+          path: installer
+
+      - name: Update dev pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-latest
+          name: "Development Build"
+          body: "Latest development build from dev branch. This is a pre-release."
+          prerelease: true
+          make_latest: false
+          files: |
+            linux/*.deb
+            windows/thaler-ai.exe
+            installer/*.msi
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Linux .deb
+        uses: actions/download-artifact@v4
+        with:
+          name: thaler-ai-linux-deb
+          path: linux
+
+      - name: Download Windows .exe
+        uses: actions/download-artifact@v4
+        with:
+          name: thaler-ai-windows-exe
+          path: windows
+
+      - name: Download Windows .msi
+        uses: actions/download-artifact@v4
+        with:
+          name: thaler-ai-windows-msi
+          path: installer
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            linux/*.deb
+            windows/thaler-ai.exe
+            installer/*.msi
+          generate_release_notes: true
