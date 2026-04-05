@@ -22,7 +22,8 @@
             Languages='1033'
             Compressed='yes'
             InstallScope='perMachine'
-            SummaryCodepage='1252'/>
+            SummaryCodepage='1252'
+            Platform='x64'/>
 
         <MajorUpgrade
             Schedule='afterInstallInitialize'
@@ -32,9 +33,9 @@
         <Property Id='DiskPrompt' Value='Thaler AI Installation'/>
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
-            <Directory Id='ProgramFilesFolder' Name='PFiles'>
+            <Directory Id='ProgramFiles64Folder' Name='PFiles'>
                 <Directory Id='APPLICATIONFOLDER' Name='Thaler AI'>
-                    <Component Id='binary0' Guid='A1B2C3D4-E5F6-7890-ABCD-EF1234567890'>
+                    <Component Id='binary0' Guid='A1B2C3D4-E5F6-7890-ABCD-EF1234567890' Win64='yes'>
                         <File Id='exe0'
                             Name='thaler-ai.exe'
                             DiskId='1'
