@@ -354,17 +354,15 @@ textarea::placeholder { color: var(--text-dim); }
 }
 
 .category-panel {
-    width: 120px;
+    width: 190px;
     flex-shrink: 0;
     border-left: 1px solid var(--border);
     padding: 6px 8px;
     display: flex;
     flex-direction: column;
-    flex-wrap: wrap;
-    align-content: flex-start;
     gap: 3px;
+    overflow-y: auto;
 }
-
 
 .category-header {
     font-size: 0.68rem;
