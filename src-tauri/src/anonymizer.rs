@@ -884,14 +884,18 @@ impl Anonymizer {
             return Err(format!("Oryginał to .{}, nie .xlsx", self.original_file_ext));
         }
 
+        // Build Aho-Corasick replacer (single-pass, no token corruption)
+        let mut sorted: Vec<_> = self.entities.iter().collect();
+        sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        let patterns: Vec<&str> = sorted.iter().map(|(k, _)| k.as_str()).collect();
+        let replacements: Vec<&str> = sorted.iter().map(|(_, v)| v.token.as_str()).collect();
+        let ac = AhoCorasick::builder()
+            .match_kind(aho_corasick::MatchKind::LeftmostLongest)
+            .build(&patterns)
+            .unwrap();
+
         Self::replace_in_xlsx_shared_strings(original_bytes, |text| {
-            let mut result = text.to_string();
-            let mut sorted: Vec<_> = self.entities.iter().collect();
-            sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
-            for (original, info) in sorted {
-                result = result.replace(original.as_str(), &info.token);
-            }
-            result
+            ac.replace_all(text, &replacements)
         })
     }
 
@@ -1239,11 +1243,14 @@ impl Anonymizer {
             // Concatenate all text
             let full_text = wt_texts.join("");
 
-            // Apply entity replacements on concatenated text
-            let mut replaced = full_text.clone();
-            for (original, info) in &sorted {
-                replaced = replaced.replace(original.as_str(), &info.token);
-            }
+            // Apply entity replacements on concatenated text (single-pass Aho-Corasick)
+            let patterns: Vec<&str> = sorted.iter().map(|(k, _)| k.as_str()).collect();
+            let replacements: Vec<&str> = sorted.iter().map(|(_, v)| v.token.as_str()).collect();
+            let ac = AhoCorasick::builder()
+                .match_kind(aho_corasick::MatchKind::LeftmostLongest)
+                .build(&patterns)
+                .unwrap();
+            let replaced = ac.replace_all(&full_text, &replacements);
 
             // If nothing changed, return original paragraph
             if replaced == full_text {
