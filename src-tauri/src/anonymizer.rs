@@ -279,7 +279,7 @@ fn type_to_polish(t: &str) -> &str {
         "BANK_ACCOUNT" => "KONTO",
         "PESEL" => "PESEL",
         "OTHER_ID" => "ID",
-        _ => "ENCJA",
+        _ => t,  // dynamic: model-invented types become token names
     }
 }
 
@@ -678,18 +678,6 @@ impl Anonymizer {
             self.log(&format!("⚠️ Pominięto {}/{} chunków — wynik może być niepełny", skipped_chunks, chunks.len()));
         }
 
-        // Normalize unknown NER types to OTHER_ID (models sometimes invent types like NR_ARIMR)
-        let known_types: &[&str] = &[
-            "PERSON", "COMPANY", "AMOUNT", "DATE", "ADDRESS", "PHONE", "EMAIL",
-            "CONTRACT_ID", "NIP", "REGON", "KRS", "BANK_ACCOUNT", "PESEL", "OTHER_ID",
-        ];
-        for entity in &mut all_entities {
-            if !known_types.contains(&entity.entity_type.as_str()) {
-                self.log(&format!("  typ '{}' → OTHER_ID (nieznany typ)", entity.entity_type));
-                entity.entity_type = "OTHER_ID".to_string();
-            }
-        }
-
         let mut seen = std::collections::HashSet::new();
         all_entities.retain(|e| {
             let key = e.text.trim().to_string();
@@ -718,9 +706,20 @@ impl Anonymizer {
         }
 
         // Post-hoc filter: remove entities of disabled types
+        // Unknown types (model-invented) are treated as ID category
+        let id_types: Vec<String> = CATEGORY_TYPES.iter()
+            .find(|(cat, _)| *cat == "ID")
+            .map(|(_, types)| types.iter().map(|t| t.to_string()).collect())
+            .unwrap_or_default();
         if !allowed_types.is_empty() {
+            let id_allowed = allowed_types.iter().any(|t| id_types.contains(t));
             let before = all_entities.len();
-            all_entities.retain(|e| allowed_types.iter().any(|t| t == &e.entity_type));
+            all_entities.retain(|e| {
+                let is_known = allowed_types.iter().any(|t| t == &e.entity_type);
+                let is_unknown = !CATEGORY_TYPES.iter()
+                    .any(|(_, types)| types.contains(&e.entity_type.as_str()));
+                is_known || (is_unknown && id_allowed)
+            });
             let filtered = before - all_entities.len();
             if filtered > 0 {
                 self.log(&format!("Odfiltrowano {} encji z wyłączonych kategorii", filtered));
