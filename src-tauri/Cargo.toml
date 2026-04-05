@@ -1,0 +1,27 @@
+[package]
+name = "thaler-ai"
+version = "0.4.1"
+description = "Document anonymization with local LLM"
+authors = ["Jerzy Maczewski"]
+license = "MIT"
+edition = "2021"
+
+[[bin]]
+name = "thaler-ai"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+calamine = "0.26"
+zip = "2"
+quick-xml = "0.37"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["full"] }
+regex = "1"
+aho-corasick = "1"
+open = "5"
+bytes = "1"

@@ -1,0 +1,17 @@
+# Mapowania anonimizacji — zawierają dane wrażliwe!
+.anon-map-*.json
+
+# Pliki zanonimizowane i odtworzone (tymczasowe)
+*.anon.md
+*.restored.md
+
+# Rust / Tauri build
+src-tauri/target/
+src-tauri/gen/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

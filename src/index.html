@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thaler AI — Anonimizator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>🎭 Thaler AI <span id="app-version" style="font-size:0.45em;font-weight:400;opacity:0.6">v{{VERSION}}</span></h1>
+        <div class="header-right">
+            <div class="mode-switch">
+                <button id="btn-mode-anon" class="mode-btn active">🔒 Anonimizacja</button>
+                <button id="btn-mode-deanon" class="mode-btn">🔓 De-anonimizacja</button>
+            </div>
+            <button id="btn-theme" class="theme-btn" title="Przełącz motyw">🌙</button>
+            <span id="status" class="status">Gotowy</span>
+        </div>
+    </header>
+
+    <div id="ollama-config" class="config-bar">
+        <label for="ollama-url">Ollama URL:</label>
+        <input type="text" id="ollama-url" value="http://localhost:11434" spellcheck="false">
+        <button id="btn-check-ollama" class="config-btn">Sprawdź</button>
+        <select id="model-select" disabled>
+            <option value="">— wybierz model —</option>
+        </select>
+        <span id="config-status" class="config-status"></span>
+    </div>
+
+    <div id="spinner" class="spinner hidden">
+        <div class="spinner-ring"></div>
+        <span id="spinner-text">Analizuję dokument...</span>
+    </div>
+
+    <main>
+        <!-- ANONYMIZE MODE -->
+        <div id="mode-anon" class="mode-panel">
+            <div class="steps">
+                <div class="step" id="step-anon-1">
+                    <div class="step-header">
+                        <span class="step-num">1</span>
+                        <span class="step-title">Wczytaj dokument</span>
+                        <span id="file-name" class="info"></span>
+                        <button id="btn-open-file" class="step-btn">📂 Otwórz plik</button>
+                        <input type="file" id="file-input" accept=".xlsx,.xls,.docx,.md,.txt,.csv" hidden>
+                    </div>
+                    <div class="step-body">
+                        <textarea id="input" readonly placeholder="Otwórz plik XLSX, DOCX lub MD..."></textarea>
+                    </div>
+                </div>
+
+                <div class="step disabled" id="step-anon-2">
+                    <div class="step-header">
+                        <span class="step-num">2</span>
+                        <span class="step-title">Anonimizuj</span>
+                        <span id="anon-info" class="info"></span>
+                        <button id="btn-anonymize" class="step-btn accent" disabled>🔒 Anonimizuj</button>
+                    </div>
+                    <div class="step-body step-body-split">
+                        <textarea id="output" readonly placeholder="Zanonimizowany tekst pojawi się tutaj..."></textarea>
+                        <div class="category-panel">
+                            <div class="category-header">Kategorie</div>
+                            <label class="cat-item" title="PERSON"><input type="checkbox" value="PERSON" checked><span>Osoby</span></label>
+                            <label class="cat-item" title="ADDRESS"><input type="checkbox" value="ADDRESS" checked><span>Adresy</span></label>
+                            <label class="cat-item" title="COMPANY"><input type="checkbox" value="COMPANY" checked><span>Firmy</span></label>
+                            <label class="cat-item" title="NIP, REGON, KRS, PESEL, CONTRACT_ID, OTHER_ID"><input type="checkbox" value="ID" checked><span>Numery ID</span></label>
+                            <label class="cat-item" title="AMOUNT, BANK_ACCOUNT"><input type="checkbox" value="AMOUNT" checked><span>Kwoty</span></label>
+                            <label class="cat-item" title="PHONE, EMAIL"><input type="checkbox" value="CONTACT" checked><span>Kontakt</span></label>
+                            <label class="cat-item" title="DATE"><input type="checkbox" value="DATE" checked><span>Daty</span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="mapping-section" class="step disabled">
+                    <div class="step-header">
+                        <span class="step-num">📊</span>
+                        <span class="step-title">Mapowanie encji</span>
+                        <span id="mapping-count" class="info"></span>
+                    </div>
+                    <div class="step-body mapping-body">
+                        <table id="mapping-table">
+                            <thead>
+                                <tr><th>Token</th><th>Typ</th><th>Oryginał</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="step disabled" id="step-anon-3">
+                    <div class="step-header">
+                        <span class="step-num">3</span>
+                        <span class="step-title">Pobierz wynik</span>
+                        <span id="save-info" class="info"></span>
+                        <button id="btn-save-anon" class="step-btn success" disabled>💾 Pobierz plik + mapę</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DEANONYMIZE MODE -->
+        <div id="mode-deanon" class="mode-panel hidden">
+            <div class="steps">
+                <div class="step" id="step-deanon-1">
+                    <div class="step-header">
+                        <span class="step-num">1</span>
+                        <span class="step-title">Wczytaj zanonimizowany plik</span>
+                        <span id="deanon-file-name" class="info"></span>
+                        <button id="btn-open-anon-file" class="step-btn">📂 Otwórz plik .anon</button>
+                        <input type="file" id="deanon-file-input" accept=".md,.txt,.docx,.xlsx,.xls" hidden>
+                    </div>
+                    <div class="step-body">
+                        <textarea id="deanon-input" readonly placeholder="Otwórz zanonimizowany plik..."></textarea>
+                    </div>
+                </div>
+
+                <div class="step disabled" id="step-deanon-2">
+                    <div class="step-header">
+                        <span class="step-num">2</span>
+                        <span class="step-title">Wczytaj mapę</span>
+                        <span id="map-file-name" class="info"></span>
+                        <button id="btn-open-map" class="step-btn" disabled>📂 Otwórz mapę (.map.json)</button>
+                        <input type="file" id="map-file-input" accept=".json" hidden>
+                    </div>
+                </div>
+
+                <div class="step disabled" id="step-deanon-3">
+                    <div class="step-header">
+                        <span class="step-num">3</span>
+                        <span class="step-title">De-anonimizuj</span>
+                        <span id="deanon-info" class="info"></span>
+                        <button id="btn-deanonymize" class="step-btn accent" disabled>🔓 De-anonimizuj</button>
+                    </div>
+                </div>
+
+                <div class="step disabled" id="step-deanon-4">
+                    <div class="step-header">
+                        <span class="step-num">4</span>
+                        <span class="step-title">Wynik de-anonimizacji</span>
+                        <button id="btn-save-deanon" class="step-btn success" disabled>💾 Pobierz wynik</button>
+                    </div>
+                    <div class="step-body">
+                        <textarea id="deanon-output" readonly placeholder="Odtworzony tekst pojawi się tutaj..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="log-panel" class="log-panel">
+        <div class="log-header">
+            <span>Logi</span>
+            <button id="btn-copy-logs" class="log-clear">Kopiuj</button>
+            <button id="btn-clear-logs" class="log-clear">Wyczyść</button>
+        </div>
+        <pre id="log-output"></pre>
+        </div>
+    </main>
+
+    <script src="main.js"></script>
+</body>
+</html>
