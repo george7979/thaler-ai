@@ -277,33 +277,31 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
 └──────────────────────┬──────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  4. NORMALIZACJA TYPÓW                                   │
-│     nieznane typy (np. NR_ARIMR) → OTHER_ID             │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│  5. DEDUPLIKACJA                                         │
+│  4. DEDUPLIKACJA                                         │
 │     po tekście (case-insensitive), usunięcie pustych    │
 └──────────────────────┬──────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  6. REGEX SAFETY NET                    deterministyczny │
+│  5. REGEX SAFETY NET                    deterministyczny │
 │     wzorce pominiete przez model (nr dowodu itp.)       │
 │     → patrz: Reguły deterministyczne                    │
 └──────────────────────┬──────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  7. FILTR KATEGORII                          post-hoc   │
+│  6. FILTR KATEGORII                          post-hoc   │
 │     usunięcie encji z wyłączonych checkboxów UI         │
+│     nieznane typy → przypisane do kategorii "Numery ID" │
 └──────────────────────┬──────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  8. TOKENIZACJA                                          │
-│     encja → deterministyczny token [TH_TYP_NNN]        │
+│  7. TOKENIZACJA                          dynamiczne typy │
+│     encja → token [TH_TYP_NNN]                         │
+│     znane typy: TH_OSOBA, TH_FIRMA, TH_NIP, ...        │
+│     nieznane: model wymyśla typ → TH_NR_ARIMR itp.     │
 └──────────────────────┬──────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  9. ZAMIANA W TEKŚCIE                                    │
+│  8. ZAMIANA W TEKŚCIE                                    │
 │     Aho-Corasick single-pass O(n), longest match first  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -321,12 +319,13 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
    4. Owrapowanie obiektów bez tablicy w `[]` (usunięcie trailing comma)
    5. Usunięcie trailing comma wewnątrz `[...]`
    6. **Fallback regex** — wyciągnięcie pojedynczych obiektów `{"text":"...","type":"..."}` niezależnie od formatowania
-4. **Normalizacja typów** — nieznane typy zwrócone przez model (np. `NR_ARIMR`) mapowane na `OTHER_ID`
-5. **Deduplikacja** po tekście (case-insensitive)
-6. **Regex safety net** — deterministyczne wykrywanie wzorców pominiętych przez model (patrz: [Reguły deterministyczne](#reguły-deterministyczne-regex-safety-net))
-7. **Filtr kategorii post-hoc** — usunięcie encji z wyłączonych typów (na podstawie checkboxów)
-8. **Tworzenie tokenów** — deterministyczne: ta sama encja → ten sam token
-9. **Zamiana** w tekście — single-pass przez Aho-Corasick (O(n), najdłuższe dopasowania priorytetowe)
+4. **Deduplikacja** po tekście (case-insensitive)
+5. **Regex safety net** — deterministyczne wykrywanie wzorców pominiętych przez model (patrz: [Reguły deterministyczne](#reguły-deterministyczne-regex-safety-net))
+6. **Filtr kategorii post-hoc** — usunięcie encji z wyłączonych typów (na podstawie checkboxów). Nieznane typy (wymyślone przez model) przypisane do kategorii "Numery ID"
+7. **Tworzenie tokenów** — deterministyczne, z dynamicznymi typami:
+   - Znane typy: `PERSON` → `[TH_OSOBA_001]`, `COMPANY` → `[TH_FIRMA_001]` itp.
+   - Nieznane typy: model wymyśla typ → token go odzwierciedla, np. `NR_ARIMR` → `[TH_NR_ARIMR_001]`
+8. **Zamiana** w tekście — single-pass przez Aho-Corasick (O(n), najdłuższe dopasowania priorytetowe)
 
 ### Uwaga dot. DOCX:
 - Bielik 11B jest wrażliwy na białe znaki — `\n\n` między akapitami obniża skuteczność z 7 do 1 encji
