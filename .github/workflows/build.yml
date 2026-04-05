@@ -85,7 +85,7 @@ jobs:
         run: cargo build --release
 
       - name: Install cargo-wix
-        run: cargo install cargo-wix --locked
+        run: cargo install cargo-wix --locked || true
 
       - name: Add WiX Toolset to PATH
         shell: bash
