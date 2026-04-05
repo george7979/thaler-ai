@@ -2,12 +2,11 @@ name: Build
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - "src/**"
       - "src-tauri/**"
       - ".github/workflows/**"
-    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -39,6 +38,9 @@ jobs:
       - name: Build release binary
         working-directory: src-tauri
         run: cargo build --release
+
+      - name: Clean old .deb artifacts
+        run: rm -rf src-tauri/target/debian/*.deb
 
       - name: Build .deb package
         working-directory: src-tauri
@@ -84,6 +86,10 @@ jobs:
         shell: bash
         run: echo "${WIX}bin" >> $GITHUB_PATH
 
+      - name: Clean old .msi artifacts
+        shell: bash
+        run: rm -rf src-tauri/target/wix/*.msi
+
       - name: Build .msi installer
         working-directory: src-tauri
         run: cargo wix --no-build --nocapture
@@ -115,6 +121,11 @@ jobs:
           name: thaler-ai-windows-msi
           path: installer
 
+      - name: Delete old dev-latest release
+        run: gh release delete dev-latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Update dev pre-release
         uses: softprops/action-gh-release@v2
         with:
@@ -130,11 +141,23 @@ jobs:
   release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from Cargo.toml
+        id: version
+        run: echo "ver=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*\"\(.*\)\"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Create/move tag
+        run: |
+          git tag -f v${{ steps.version.outputs.ver }}
+          git push origin v${{ steps.version.outputs.ver }} --force
+
       - name: Download Linux .deb
         uses: actions/download-artifact@v4
         with:
@@ -150,6 +173,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.ver }}
           files: |
             linux/*.deb
             installer/*.msi
