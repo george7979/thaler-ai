@@ -255,6 +255,61 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
 
 ## Algorytm wykrywania encji
 
+### Pipeline (diagram):
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. PODZIAŁ TEKSTU                                       │
+│     dokument → segmenty ~3000 znaków                    │
+│     faza 1: \n\n (akapity) → faza 2: \n (wiersze)      │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  2. WYKRYWANIE (LLM)                          per chunk │
+│     prompt NER → Ollama /api/chat → odpowiedź JSON      │
+│     retry: 3 próby, exponential backoff (0s→2s→4s)      │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  3. PARSOWANIE JSON                    6-poziomowy fallback │
+│     direct parse → extract [...] → repair truncated     │
+│     → wrap bare objects → strip comma → regex fallback  │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  4. NORMALIZACJA TYPÓW                                   │
+│     nieznane typy (np. NR_ARIMR) → OTHER_ID             │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  5. DEDUPLIKACJA                                         │
+│     po tekście (case-insensitive), usunięcie pustych    │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  6. REGEX SAFETY NET                    deterministyczny │
+│     wzorce pominiete przez model (nr dowodu itp.)       │
+│     → patrz: Reguły deterministyczne                    │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  7. FILTR KATEGORII                          post-hoc   │
+│     usunięcie encji z wyłączonych checkboxów UI         │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  8. TOKENIZACJA                                          │
+│     encja → deterministyczny token [TH_TYP_NNN]        │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  9. ZAMIANA W TEKŚCIE                                    │
+│     Aho-Corasick single-pass O(n), longest match first  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Szczegóły kroków:
+
 1. **Podział** dokumentu na segmenty ~3000 znaków (dwufazowy):
    - **Faza 1:** podział na `\n\n` (granice akapitów — dla dokumentów tekstowych)
    - **Faza 2:** jeśli segment > max_chars, podział na `\n` (granice wierszy — dla XLSX/CSV)
@@ -266,7 +321,7 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
    4. Owrapowanie obiektów bez tablicy w `[]` (usunięcie trailing comma)
    5. Usunięcie trailing comma wewnątrz `[...]`
    6. **Fallback regex** — wyciągnięcie pojedynczych obiektów `{"text":"...","type":"..."}` niezależnie od formatowania
-4. **Retry z exponential backoff** — jeśli Ollama nie odpowie, do 3 prób (opóźnienia: 0s → 2s → 4s). Pominięcie chunka po wyczerpaniu prób
+4. **Normalizacja typów** — nieznane typy zwrócone przez model (np. `NR_ARIMR`) mapowane na `OTHER_ID`
 5. **Deduplikacja** po tekście (case-insensitive)
 6. **Regex safety net** — deterministyczne wykrywanie wzorców pominiętych przez model (patrz: [Reguły deterministyczne](#reguły-deterministyczne-regex-safety-net))
 7. **Filtr kategorii post-hoc** — usunięcie encji z wyłączonych typów (na podstawie checkboxów)
