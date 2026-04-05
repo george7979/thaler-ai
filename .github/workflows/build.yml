@@ -34,7 +34,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install cargo-deb
-        run: cargo install cargo-deb --locked || true
+        run: cargo install cargo-deb --locked --force
 
       - name: Build release binary
         working-directory: src-tauri
