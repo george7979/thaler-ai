@@ -2,7 +2,7 @@
 Name=Thaler AI
 Comment=Document anonymization with local LLM
 Exec=thaler-ai
-Icon=/usr/share/pixmaps/thaler-ai.png
+Icon=thaler-ai
 Terminal=false
 Type=Application
 Categories=Utility;

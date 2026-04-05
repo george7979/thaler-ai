@@ -41,6 +41,8 @@ assets = [
     ["target/release/thaler-ai", "usr/bin/", "755"],
     ["assets/thaler-ai.desktop", "usr/share/applications/", "644"],
     ["icons/128x128.png", "usr/share/pixmaps/thaler-ai.png", "644"],
+    ["icons/128x128.png", "usr/share/icons/hicolor/128x128/apps/thaler-ai.png", "644"],
+    ["icons/32x32.png", "usr/share/icons/hicolor/32x32/apps/thaler-ai.png", "644"],
 ]
 
 [package.metadata.wix]
