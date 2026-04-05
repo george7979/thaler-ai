@@ -36,6 +36,7 @@ section = "utils"
 priority = "optional"
 depends = "libc6"
 extended-description = "Detects sensitive entities and replaces them with deterministic tokens.\nAll processing is local — data never leaves the machine."
+maintainer-scripts = "assets/scripts/"
 assets = [
     ["target/release/thaler-ai", "usr/bin/", "755"],
     ["assets/thaler-ai.desktop", "usr/share/applications/", "644"],

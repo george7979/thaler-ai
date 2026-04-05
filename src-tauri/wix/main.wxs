@@ -80,6 +80,12 @@
             <ComponentRef Id='AppStartMenuShortcut'/>
         </Feature>
 
+        <!-- Kill running thaler-ai.exe before uninstall/upgrade (silent, no dialogs) -->
+        <CustomAction Id='KillApp' Directory='TARGETDIR' ExeCommand='cmd.exe /c taskkill /f /im thaler-ai.exe' Execute='immediate' Return='ignore'/>
+        <InstallExecuteSequence>
+            <Custom Action='KillApp' Before='InstallValidate'>REMOVE~="ALL" OR WIX_UPGRADE_DETECTED</Custom>
+        </InstallExecuteSequence>
+
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
 
         <Icon Id='ProductICO' SourceFile='icons\icon.ico'/>
