@@ -24,7 +24,7 @@
 - [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie
 - [ ] Drag & drop — pliki do okna aplikacji
 - [ ] Kopiowanie do schowka — zanonimizowany tekst
-- [ ] Profesjonalne ikony
+- [x] Profesjonalne ikony — maski teatralne (komedia/tragedia)
 
 ### Opcjonalne:
 - [ ] Przetwarzanie wsadowe — folder z dokumentami

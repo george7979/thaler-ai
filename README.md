@@ -12,10 +12,15 @@ Proste narzedzie do anonimizacji dokumentow z wykorzystaniem lokalnego LLM (Olla
 ## Wymagania
 
 - Linux (x86_64) — testowane na Ubuntu/WSL2, Debian
+- Windows (x86_64) — testowane na Windows 10/11
 - [Ollama](https://ollama.ai/) z zainstalowanym modelem AI (np. Bielik, Gemma)
-- Przegladarka internetowa (Chrome, Firefox)
+- Przegladarka internetowa (Chrome, Firefox, Edge)
 
 ## Instalacja
+
+Pobierz najnowsza wersje z [GitHub Releases](https://github.com/george7979/thaler-ai/releases).
+
+### Linux (.deb)
 
 ```bash
 sudo dpkg -i thaler-ai_<wersja>_amd64.deb
@@ -26,6 +31,14 @@ Odinstalowanie:
 ```bash
 sudo dpkg -r thaler-ai
 ```
+
+### Windows (.msi)
+
+Uruchom instalator `thaler-ai-<wersja>-x86_64.msi` — aplikacja zainstaluje sie w Program Files i pojawi sie w menu Start.
+
+> **Uwaga:** Aplikacja nie jest podpisana cyfrowo. Przy pierwszym uruchomieniu Windows SmartScreen moze wyswietlic ostrzezenie. Kliknij **Wiecej informacji** → **Uruchom mimo to**.
+
+Odinstalowanie: Panel sterowania → Programy → Odinstaluj program → Thaler AI.
 
 ## Uruchomienie
 

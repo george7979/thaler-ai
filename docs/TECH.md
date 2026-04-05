@@ -99,7 +99,7 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 ## Znane ograniczenia
 
 - XLSX → markdown traci formatowanie (scalone komórki, kolory) — calamine zwraca tylko dane tekstowe
-- Placeholder ikony (czerwone kółka) zamiast profesjonalnych
+- Brak podpisu cyfrowego — Windows SmartScreen wyswietla ostrzezenie przy pierwszym uruchomieniu
 
 ---
 
