@@ -22,6 +22,7 @@
 
 ### Ważne:
 - [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie
+- [ ] Losowe kwoty zamiast tokenów w XLSX — zachowanie formuł i formatowania (analiza: `docs/ANALIZA-KWOTY-XLSX.md`)
 - [ ] Drag & drop — pliki do okna aplikacji
 - [ ] Kopiowanie do schowka — zanonimizowany tekst
 - [x] Profesjonalne ikony — maski teatralne (komedia/tragedia)
