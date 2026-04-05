@@ -26,6 +26,9 @@ aho-corasick = "1"
 open = "5"
 bytes = "1"
 
+[build-dependencies]
+winres = "0.1"
+
 [package.metadata.deb]
 revision = ""
 maintainer = "Jerzy Maczewski"
