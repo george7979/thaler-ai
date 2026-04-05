@@ -51,13 +51,6 @@ jobs:
           path: src-tauri/target/debian/*.deb
           retention-days: 30
 
-      - name: Upload portable binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: thaler-ai-linux-bin
-          path: src-tauri/target/release/thaler-ai
-          retention-days: 30
-
   build-windows:
     runs-on: windows-latest
 
@@ -95,13 +88,6 @@ jobs:
         working-directory: src-tauri
         run: cargo wix --no-build --nocapture
 
-      - name: Upload portable .exe
-        uses: actions/upload-artifact@v4
-        with:
-          name: thaler-ai-windows-exe
-          path: src-tauri/target/release/thaler-ai.exe
-          retention-days: 30
-
       - name: Upload .msi installer
         uses: actions/upload-artifact@v4
         with:
@@ -123,12 +109,6 @@ jobs:
           name: thaler-ai-linux-deb
           path: linux
 
-      - name: Download Windows .exe
-        uses: actions/download-artifact@v4
-        with:
-          name: thaler-ai-windows-exe
-          path: windows
-
       - name: Download Windows .msi
         uses: actions/download-artifact@v4
         with:
@@ -145,7 +125,6 @@ jobs:
           make_latest: false
           files: |
             linux/*.deb
-            windows/thaler-ai.exe
             installer/*.msi
 
   release:
@@ -162,12 +141,6 @@ jobs:
           name: thaler-ai-linux-deb
           path: linux
 
-      - name: Download Windows .exe
-        uses: actions/download-artifact@v4
-        with:
-          name: thaler-ai-windows-exe
-          path: windows
-
       - name: Download Windows .msi
         uses: actions/download-artifact@v4
         with:
@@ -179,6 +152,5 @@ jobs:
         with:
           files: |
             linux/*.deb
-            windows/thaler-ai.exe
             installer/*.msi
           generate_release_notes: true
