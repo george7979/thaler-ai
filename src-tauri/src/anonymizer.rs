@@ -678,6 +678,18 @@ impl Anonymizer {
             self.log(&format!("⚠️ Pominięto {}/{} chunków — wynik może być niepełny", skipped_chunks, chunks.len()));
         }
 
+        // Normalize unknown NER types to OTHER_ID (models sometimes invent types like NR_ARIMR)
+        let known_types: &[&str] = &[
+            "PERSON", "COMPANY", "AMOUNT", "DATE", "ADDRESS", "PHONE", "EMAIL",
+            "CONTRACT_ID", "NIP", "REGON", "KRS", "BANK_ACCOUNT", "PESEL", "OTHER_ID",
+        ];
+        for entity in &mut all_entities {
+            if !known_types.contains(&entity.entity_type.as_str()) {
+                self.log(&format!("  typ '{}' → OTHER_ID (nieznany typ)", entity.entity_type));
+                entity.entity_type = "OTHER_ID".to_string();
+            }
+        }
+
         let mut seen = std::collections::HashSet::new();
         all_entities.retain(|e| {
             let key = e.text.trim().to_string();
