@@ -697,7 +697,9 @@ impl Anonymizer {
             let re = regex::Regex::new(pattern).unwrap();
             for m in re.find_iter(text) {
                 let found = m.as_str().to_string();
-                if !seen.contains(&found) {
+                if !seen.contains(&found)
+                    && !all_entities.iter().any(|e| e.text.contains(&found))
+                {
                     self.log(&format!("  regex fallback: '{}' → {}", found, ner_type));
                     all_entities.push(NerEntity { text: found.clone(), entity_type: ner_type.to_string() });
                     seen.insert(found);

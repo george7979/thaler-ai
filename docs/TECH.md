@@ -335,7 +335,9 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
 
 ## Reguły deterministyczne (regex safety net)
 
-Moduł regex działa **po** wykrywaniu przez LLM i **po** deduplikacji — łapie wzorce, które mały model mógł pominąć. Każda reguła to para: wzorzec regex + typ NER. Encje znalezione przez regex nie duplikują się z tymi z LLM (sprawdzanie po `seen` set).
+Moduł regex działa **po** wykrywaniu przez LLM i **po** deduplikacji — łapie wzorce, które mały model mógł pominąć. Każda reguła to para: wzorzec regex + typ NER. Encje znalezione przez regex są pomijane jeśli:
+- zostały już wykryte (sprawdzanie po `seen` set)
+- są zawarte w dłuższej encji wykrytej przez model (np. `ABC123456` pominięty gdy model wykrył `"Dowód osobisty: ABC123456"`)
 
 W logach wykrycia regex oznaczone są jako `regex fallback: '<wartość>' → <typ>`.
 
