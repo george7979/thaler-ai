@@ -9,7 +9,7 @@
 
 **Autor:** Jerzy Maczewski
 **Start projektu:** 2026-03-26
-**Aktualna wersja:** v0.4.1
+**Aktualna wersja:** v0.4.2
 **Faza:** Early access — publiczny dostęp, aktywny rozwój
 
 ---
@@ -50,6 +50,12 @@
 ---
 
 ## Ukończone
+
+### v0.4.2 (2026-04-05):
+- ✅ Regex safety net — deterministyczne wykrywanie nr dowodu osobistego (`[A-Z]{3}\d{6}`)
+- ✅ Dynamiczne typy encji — model wymyśla typ → token go odzwierciedla (np. `[TH_NR_ARIMR_001]`)
+- ✅ Wzbogacony prompt NER (przykłady formatów nr dowodu, ARiMR)
+- ✅ Nieznane typy przypisane do kategorii "Numery ID"
 
 ### v0.4.1 (2026-04-05):
 - ✅ Ciemny/jasny motyw UI z autodetekcją systemową (`prefers-color-scheme`)
@@ -101,6 +107,7 @@
 | 2026-03-27 | v0.3.0 | Eksport natywny DOCX/XLSX, tokeny TH_, statystyki deanonimizacji |
 | 2026-04-05 | v0.4.0 | Filtry kategorii, /api/chat, fix parsera JSON, wyświetlanie wersji |
 | 2026-04-05 | v0.4.1 | Motyw ciemny/jasny, fix heartbeat, anonimizacja hiperlinków XLSX, fix bezpieczeństwa |
+| 2026-04-05 | v0.4.2 | Regex safety net, dynamiczne typy encji, CI/CD, ikona, Windows .msi |
 
 ---
 
