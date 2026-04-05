@@ -13,7 +13,7 @@ Detects sensitive entities (persons, companies, amounts, dates, addresses, IDs) 
 - **Frontend:** Vanilla HTML/CSS/JS — `src/` (embedded via `include_str!`, served by axum)
 - **NER:** Ollama API, model selectable in UI (no fallback — single model, user's choice)
 - **File readers:** calamine (XLSX), zip + quick-xml (DOCX), std::fs (MD/TXT/CSV)
-- **Build targets:** .deb (Linux), .exe (Windows planned)
+- **Build targets:** .deb (Linux), .msi (Windows) — via GitHub Actions CI/CD
 
 ## Architecture
 

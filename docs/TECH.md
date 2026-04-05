@@ -90,9 +90,14 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 - **Tabela mapowań w UI:** Token ↔ typ ↔ oryginał — ✅ Gotowe
 - **Ciemny/jasny motyw UI:** przełącznik z autodetekcją systemową (`prefers-color-scheme`) — ✅ Gotowe
 - **Konfiguracja Ollama w UI:** pole URL + lista modeli — ✅ Gotowe
-- **Auto-shutdown:** heartbeat + timeout — ✅ Gotowe
+- **Auto-shutdown:** heartbeat 120s + visibilitychange — ✅ Gotowe
 - **Autodetekcja portu:** zakres 3000-3100 — ✅ Gotowe
-- **Build .deb:** paczka ~2.8 MB — ✅ Gotowe
+- **Build .deb:** paczka via cargo-deb — ✅ Gotowe
+- **Build .msi:** instalator Windows via cargo-wix (menu Start, ikona, auto-kill przy deinstalacji) — ✅ Gotowe
+- **CI/CD:** GitHub Actions — auto-build .deb + .msi na push do dev i tag v* — ✅ Gotowe
+- **Ikona aplikacji:** maski teatralne, osadzona w .exe (winres), .deb (pixmaps), .msi (WiX) — ✅ Gotowe
+- **Windows:** ukryta konsola (`windows_subsystem`), auto-kill przy deinstalacji (taskkill) — ✅ Gotowe
+- **Linux:** auto-kill przy deinstalacji (prerm killall) — ✅ Gotowe
 
 ---
 
@@ -132,7 +137,7 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 ### Budowanie i dystrybucja:
 - **Build:** `cargo build --release` (w `src-tauri/`)
 - **Linux:** .deb via `cargo-deb` (metadane w `Cargo.toml [package.metadata.deb]`)
-- **Windows:** .exe + .msi via `cargo-wix` (WiX template w `wix/main.wxs`)
+- **Windows:** .msi via `cargo-wix` (WiX template w `wix/main.wxs`, ikona via `winres`)
 - **CI/CD:** GitHub Actions — auto-build na push do `dev` i tag `v*`
 
 ---
@@ -151,8 +156,11 @@ thaler-ai/
 │   ├── main.js             # Wywołania API, obsługa zdarzeń
 │   └── style.css           # Ciemny/jasny motyw, responsywny layout
 ├── src-tauri/               # Backend (Rust)
-│   ├── Cargo.toml          # Zależności (axum, reqwest, calamine, itp.)
-│   ├── icons/              # Ikony aplikacji
+│   ├── Cargo.toml          # Zależności + metadane cargo-deb/cargo-wix
+│   ├── build.rs            # Build script (winres — ikona w .exe)
+│   ├── assets/             # .desktop file, prerm script
+│   ├── icons/              # Ikony aplikacji (PNG, ICO)
+│   ├── wix/                # WiX template (main.wxs, License.rtf)
 │   └── src/
 │       ├── main.rs         # Serwer axum, routing, handlery
 │       └── anonymizer.rs   # Silnik wykrywania encji, mapowanie, tokeny
@@ -318,13 +326,11 @@ cargo wix --no-build     # Package .msi from WiX template
 ### CI/CD (GitHub Actions):
 - **Trigger:** push do `dev` (pre-release) lub tag `v*` (stabilny release)
 - **Linux job:** `cargo build --release` + `cargo deb --no-build` → .deb
-- **Windows job:** `cargo build --release` + `cargo wix --no-build` → .msi + portable .exe
+- **Windows job:** `cargo build --release` + `cargo wix --no-build` → .msi
 - **Artefakty:** GitHub Releases (`dev-latest` pre-release lub wersjonowany release)
 
 ### Wynik budowania:
 ```
-src-tauri/target/release/thaler-ai           # Binary Linux (~6 MB)
-src-tauri/target/release/thaler-ai.exe       # Binary Windows (~6 MB)
 src-tauri/target/debian/*.deb                # .deb package (~3 MB)
 src-tauri/target/wix/*.msi                   # .msi installer (~6 MB)
 ```

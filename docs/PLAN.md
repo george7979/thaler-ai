@@ -18,7 +18,7 @@
 
 ### Krytyczne:
 - [ ] Testy na prawdziwych dokumentach — walidacja skuteczności wykrywania
-- [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi/.exe (Windows)
+- [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi (Windows)
 
 ### Ważne:
 - [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie
@@ -45,7 +45,7 @@
 ## Ryzyka
 
 - **Jakość wykrywania na polskich dokumentach** — pominięte dane = potencjalny wyciek. Mitygacja: wybór modelu przez użytkownika, ręczna weryfikacja tabeli mapowań, filtry kategorii
-- **Cross-compile na Windows** — nie testowane. Mitygacja: GitHub Actions z Windows runner
+- **Brak podpisu cyfrowego** — Windows SmartScreen wyświetla ostrzeżenie. Mitygacja: info w README
 
 ---
 
@@ -57,6 +57,10 @@
 - ✅ Anonimizacja hiperlinków w XLSX (pliki `_rels/*.rels`)
 - ✅ Fix path traversal w upload plików
 - ✅ Aho-Corasick single-pass replacement (O(n) zamiast O(n²))
+- ✅ GitHub Actions CI/CD — auto-build .deb + .msi
+- ✅ Ikona aplikacji — maski teatralne (komedia/tragedia)
+- ✅ Windows: ukryta konsola, ikona osadzona w .exe, auto-kill przy deinstalacji
+- ✅ Linux: auto-kill przy deinstalacji (prerm script)
 
 ### v0.4.0 (2026-04-05):
 - ✅ Fix parsera JSON — regex fallback dla zniekształconych odpowiedzi LLM
