@@ -343,7 +343,7 @@ W logach wykrycia regex oznaczone są jako `regex fallback: '<wartość>' → <t
 
 | Wzorzec | Regex | Typ NER | Przykład | Uwagi |
 |---------|-------|---------|----------|-------|
-| Nr dowodu osobistego | `\b[A-Z]{3}\d{6}\b` | OTHER_ID | CYC123456 | 3 wielkie litery + 6 cyfr |
+| Nr dowodu osobistego | `\b[A-Z]{3}\d{6}\b` | OTHER_ID | ABC123456 | 3 wielkie litery + 6 cyfr |
 
 ### Jak dodać nową regułę:
 
