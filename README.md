@@ -32,9 +32,11 @@ Odinstalowanie:
 sudo dpkg -r thaler-ai
 ```
 
-### Windows (.msi)
+### Windows
 
-Uruchom instalator `thaler-ai-<wersja>-x86_64.msi` — aplikacja zainstaluje sie w Program Files i pojawi sie w menu Start.
+Dwie opcje:
+- **Instalator (.msi)** — uruchom `thaler-ai-<wersja>-x86_64.msi`. Zainstaluje sie w Program Files, pojawi sie w menu Start i w "Dodaj/Usun programy"
+- **Portable (.exe)** — pobierz `thaler-ai.exe` i uruchom bezposrednio, bez instalacji
 
 > **Uwaga:** Aplikacja nie jest podpisana cyfrowo. Przy pierwszym uruchomieniu Windows SmartScreen moze wyswietlic ostrzezenie. Kliknij **Wiecej informacji** → **Uruchom mimo to**.
 
