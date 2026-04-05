@@ -573,7 +573,7 @@ impl Anonymizer {
             }
         }
 
-        let pl_type = type_to_polish(entity_type).to_string();
+        let pl_type = type_to_polish(entity_type).replace(' ', "_");
         let counter = self.counters.entry(pl_type.clone()).or_insert(0);
         *counter += 1;
         let token = format!("[TH_{}_{:03}]", pl_type, counter);
