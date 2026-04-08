@@ -277,6 +277,31 @@ function activateStep(stepId) {
     }
 }
 
+function deactivateStep(stepId) {
+    const step = document.getElementById(stepId);
+    if (step) {
+        step.classList.remove('active');
+        step.classList.add('disabled');
+    }
+}
+
+function resetAnonResults() {
+    // Clear output
+    $output.value = '';
+    $anonInfo.textContent = '';
+    currentAnonText = null;
+    currentMapJson = null;
+
+    // Clear mapping table
+    $mappingTable.textContent = '';
+    $mappingCount.textContent = '';
+
+    // Deactivate steps after file load
+    deactivateStep('mapping-section');
+    deactivateStep('step-anon-3');
+    btnSaveAnon.disabled = true;
+}
+
 function downloadFile(filename, content, type) {
     const blob = new Blob([content], { type: type || 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
@@ -314,6 +339,7 @@ fileInput.addEventListener('change', async () => {
 
     try {
         showSpinner('Wczytuję plik...');
+        resetAnonResults();
         currentSourceName = file.name;
 
         const ext = file.name.split('.').pop().toLowerCase();
