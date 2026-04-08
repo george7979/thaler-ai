@@ -60,6 +60,9 @@
 - ✅ `fullCalcOnLoad` w workbook.xml — wymuszenie przeliczenia formuł przy otwieraniu (anon + restored)
 - ✅ Fix shared formulas `<f t="shared">` — poprawne pomijanie formuł z atrybutami
 - ✅ Rozbicie statystyk deanonimizacji — "kwoty: X, tekst: Y" w logach
+- ✅ Reset UI przy wczytaniu nowego pliku (anon + deanon) — czyszczenie wyników poprzedniego runu
+- ✅ Limit uploadu 50 MB + limit dekompresji ZIP 100 MB/entry — ochrona przed ZIP bomb i DoS
+- ✅ Usunięcie phantom AMOUNT tokens z mapy (wyniki formuł znalezione przez NER)
 
 ### v0.4.2 (2026-04-05):
 - ✅ Regex safety net — deterministyczne wykrywanie nr dowodu osobistego (`[A-Z]{3}\d{6}`)

@@ -58,7 +58,8 @@ async fn main() {
         .route("/api/logs", get(get_logs))
         .route("/api/heartbeat", post(heartbeat))
         .route("/api/shutdown", post(shutdown))
-        .with_state(state.clone());
+        .with_state(state.clone())
+        .layer(axum::extract::DefaultBodyLimit::max(50 * 1024 * 1024)); // 50 MB upload limit
 
     // Find available port starting from 3000
     let mut port = 3000u16;

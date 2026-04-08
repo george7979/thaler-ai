@@ -5,6 +5,21 @@ use std::collections::HashMap;
 use std::path::Path;
 
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
+const MAX_ZIP_ENTRY_SIZE: u64 = 100 * 1024 * 1024; // 100 MB per ZIP entry
+
+fn read_zip_entry_safe(entry: &mut zip::read::ZipFile) -> Result<Vec<u8>, String> {
+    if entry.size() > MAX_ZIP_ENTRY_SIZE {
+        return Err(format!(
+            "Plik ZIP zawiera zbyt duży element: {} ({:.1} MB, limit {:.0} MB)",
+            entry.name(), entry.size() as f64 / 1_048_576.0, MAX_ZIP_ENTRY_SIZE as f64 / 1_048_576.0
+        ));
+    }
+    use std::io::Read;
+    let mut buf = Vec::new();
+    entry.read_to_end(&mut buf)
+        .map_err(|e| format!("Błąd odczytu {}: {}", entry.name(), e))?;
+    Ok(buf)
+}
 
 // Category → NER types mapping (controls which entities are tokenized)
 const CATEGORY_TYPES: &[(&str, &[&str])] = &[
@@ -204,6 +219,9 @@ fn read_docx(path: &str) -> Result<String, String> {
     {
         let mut doc_file = archive.by_name("word/document.xml")
             .map_err(|e| format!("Brak word/document.xml w DOCX: {}", e))?;
+        if doc_file.size() > MAX_ZIP_ENTRY_SIZE {
+            return Err(format!("word/document.xml zbyt duży: {:.1} MB", doc_file.size() as f64 / 1_048_576.0));
+        }
         doc_file.read_to_string(&mut xml_content)
             .map_err(|e| format!("Błąd odczytu XML z DOCX: {}", e))?;
     }
@@ -858,10 +876,7 @@ impl Anonymizer {
                     zip_writer.write_all(restored_xml.as_bytes())
                         .map_err(|e| format!("Błąd zapisu document.xml: {}", e))?;
                 } else {
-                    use std::io::Read;
-                    let mut buf = Vec::new();
-                    entry.read_to_end(&mut buf)
-                        .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+                    let buf = read_zip_entry_safe(&mut entry)?;
                     use std::io::Write;
                     zip_writer.write_all(&buf)
                         .map_err(|e| format!("Błąd zapisu {}: {}", name, e))?;
@@ -925,10 +940,7 @@ impl Anonymizer {
                 .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
             let name = entry.name().to_string();
 
-            use std::io::Read;
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf)
-                .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+            let buf = read_zip_entry_safe(&mut entry)?;
 
             if name == "xl/workbook.xml" {
                 // Force full recalculation on open — cached <v> in formula cells are stale
@@ -1143,10 +1155,7 @@ impl Anonymizer {
                 .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
             let name = entry.name().to_string();
 
-            use std::io::Read;
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf)
-                .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+            let buf = read_zip_entry_safe(&mut entry)?;
 
             if name == "xl/workbook.xml" {
                 // Force full recalculation on open
@@ -1302,10 +1311,7 @@ impl Anonymizer {
                 .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
             let name = entry.name().to_string();
 
-            use std::io::Read;
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf)
-                .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+            let buf = read_zip_entry_safe(&mut entry)?;
 
             if name == "xl/workbook.xml" {
                 // Force full recalculation on open
@@ -1677,10 +1683,7 @@ impl Anonymizer {
                     zip_writer.write_all(anon_xml.as_bytes())
                         .map_err(|e| format!("Błąd zapisu document.xml: {}", e))?;
                 } else {
-                    use std::io::Read;
-                    let mut buf = Vec::new();
-                    entry.read_to_end(&mut buf)
-                        .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+                    let buf = read_zip_entry_safe(&mut entry)?;
                     use std::io::Write;
                     zip_writer.write_all(&buf)
                         .map_err(|e| format!("Błąd zapisu {}: {}", name, e))?;

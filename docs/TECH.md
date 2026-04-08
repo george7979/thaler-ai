@@ -408,6 +408,8 @@ let regex_patterns: &[(&str, &str)] = &[
 - **Auto-shutdown:** serwer kończy pracę gdy przeglądarka zamknięta (timeout heartbeat 120s, odporny na throttling tabów w tle) — brak osieroconych procesów
 - **Timeout połączenia:** 5s connect, 300s request — zapobiega zawieszeniu przy niedostępnym Ollama
 - **Polityka retry:** exponential backoff (3 próby na chunk) — przejściowe błędy Ollama obsługiwane w kodzie
+- **Limit uploadu:** 50 MB na plik (`DefaultBodyLimit` w axum)
+- **Limit dekompresji ZIP:** 100 MB na entry w XLSX/DOCX — ochrona przed ZIP bomb
 
 ---
 
