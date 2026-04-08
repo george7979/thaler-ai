@@ -1,6 +1,8 @@
 # Thaler AI
 
-> **Early access** — prosta aplikacja w aktywnym rozwoju. Podstawowe funkcje dzialaja stabilnie, ale moga wystepowac zmiany w interfejsie i zachowaniu miedzy wersjami.
+![Beta](https://img.shields.io/badge/status-beta-yellow)
+
+> **Beta** — prosta aplikacja w aktywnym rozwoju. Podstawowe funkcje dzialaja stabilnie, ale moga wystepowac zmiany w interfejsie i zachowaniu miedzy wersjami.
 
 Proste narzedzie do anonimizacji dokumentow z wykorzystaniem lokalnego LLM (Ollama). Wykrywa dane wrazliwe (osoby, firmy, adresy, numery identyfikacyjne, kwoty, dane kontaktowe) i zastepuje je deterministycznymi tokenami.
 
