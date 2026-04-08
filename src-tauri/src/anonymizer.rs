@@ -1586,6 +1586,8 @@ impl Anonymizer {
 
         // Add to entity map
         let count = value_random_map.len();
+        let valid_originals: std::collections::HashSet<String> = value_random_map.keys().cloned().collect();
+
         for (original_value, rand_val) in value_random_map {
             let rand_str = rand_val.to_string();
 
@@ -1606,6 +1608,21 @@ impl Anonymizer {
                 };
                 self.entities.insert(original_value.clone(), entity_info);
                 self.reverse.insert(rand_str, original_value);
+            }
+        }
+
+        // Remove phantom AMOUNT entities — NER found these as formula results
+        // but they don't exist in any non-formula cell
+        let phantoms: Vec<String> = self.entities.iter()
+            .filter(|(orig, info)| {
+                (info.entity_type == "AMOUNT" || info.entity_type == "KWOTA")
+                    && !valid_originals.contains(orig.as_str())
+            })
+            .map(|(orig, _)| orig.clone())
+            .collect();
+        for orig in &phantoms {
+            if let Some(info) = self.entities.remove(orig) {
+                self.reverse.remove(&info.token);
             }
         }
 
