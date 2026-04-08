@@ -67,12 +67,77 @@ Oryginal moze byc `1 108,50 PLN` (z waluta, separatorem tysiecy). Losowa wartosc
 - **Proporcje znikaja** — analityk nie zobaczy "ta pozycja jest 10x wieksza od tamtej"
 - **Zlozonosc implementacji** — parsowanie worksheet XML na poziomie komorek to wiecej pracy niz obecny bulk replace
 
-## Decyzje do podjecia
+## Decyzje (podjete 2026-04-08)
 
-1. Czy losowe kwoty powinny zachowywac rzad wielkosci oryginalnej kwoty? (np. oryginalna 1000-9999 → losowa tez 4-cyfrowa)
-2. Czy kwoty z groiszami (1 108,50) powinny dostawac losowe grosze?
-3. Czy anonimizowac tez kwoty w sharedStrings (tekst w komorkach typu string)?
+1. **Rzad wielkosci: NIE zachowujemy.** Pelna anonimizacja — staly zakres 100000-999999 (900k unikalnych). Jedyny warunek: losowa wartosc nie moze kolidowac z wartosciami juz obecnymi w arkuszu ani w mapie.
+2. **Grosze: NIE generujemy.** Wstawiamy integer. Format komorki w Excelu sam doda `.00` jezeli komorka ma format walutowy/dziesietny. Zero dodatkowej logiki.
+3. **SharedStrings: NIE randomizujemy.** Komorki tekstowe (`t="s"`, `t="inlineStr"`) dostaja tokeny `[TH_KWOTA_001]` jak dotychczas. Randomizacja dotyczy wylacznie komorek numerycznych.
+
+## Plan implementacji
+
+### Zakres
+
+Tylko XLSX. W pozostalych formatach (DOCX, TXT, CSV, MD) tokeny tekstowe nie lamia niczego — zostaja bez zmian.
+
+### UI — sub-checkbox pod "Kwoty"
+
+```
+☑ Kwoty
+   ☐ losowe (XLSX)
+```
+
+- Zagniezdzona opcja pod kategoria "Kwoty" (wciety checkbox)
+- **Domyslnie odznaczona** — zachowuje obecne zachowanie
+- **Wyszarzona** gdy:
+  - plik nie jest XLSX, LUB
+  - kategoria "Kwoty" jest odznaczona
+- Tooltip dla wyszarzonego stanu: "Dostepne tylko dla plikow XLSX z wlaczona kategoria Kwoty"
+- Odblokowana automatycznie po zaladowaniu pliku `.xlsx` (jezeli "Kwoty" zaznaczone)
+
+### Logika dzialania
+
+| Typ komorki XLSX | Rozpoznanie w XML | Akcja |
+|---|---|---|
+| Numeryczna bez formuly | `<c>` z `<v>`, bez `<f>`, bez `t="s"` | Losowa 100000-999999 |
+| Formula | `<c>` z `<f>` | Nie ruszac |
+| Tekst (shared string) | `<c t="s">` | Token `[TH_KWOTA_001]` jak dotychczas |
+| Inline string | `<c t="inlineStr">` | Token jak dotychczas |
+
+### Warstwy systemu
+
+```
+NER (Ollama)              Eksport XLSX
+─────────────             ────────────────────────
+Kategoria "Kwoty"    →    checkbox "losowe (XLSX)"
+rozpoznaje kwoty          decyduje JAK je zanonimizowac
+w tekscie                 w pliku wyjsciowym
+```
+
+- **Kwoty odznaczone** → NER nie szuka kwot → brak kwot w mapie → "losowe" bez znaczenia
+- **Kwoty zaznaczone + losowe odznaczone** → tokeny `[TH_KWOTA_001]` (obecne zachowanie)
+- **Kwoty zaznaczone + losowe zaznaczone + XLSX** → numeryczne komorki dostaja losowe liczby
+
+### Zmiany w kodzie
+
+1. **`src/index.html`** — sub-checkbox pod "Kwoty", z wcieniem
+2. **`src/style.css`** — styl dla zagniezdzonego checkboxa + styl `disabled`
+3. **`src/main.js`** — logika wyszarzania (reaguje na zmiane pliku i zmiane checkboxa "Kwoty"), przekazanie flagi do backendu
+4. **`src-tauri/src/anonymizer.rs`** — `export_anon_xlsx()`:
+   - Nowy parametr: `randomize_amounts: bool`
+   - Gdy `true`: w worksheet XML, komorki numeryczne bez formul ktore zawieraja rozpoznana kwote → losowa wartosc zamiast tokena
+   - Mapa: `{ "847291": { "original": "1108", "type": "AMOUNT" } }`
+   - Pominiecie `fix_xlsx_cell_types` dla tych komorek (zostaja numeryczne)
+5. **`src-tauri/src/main.rs`** — endpoint `/api/export-anon-native` przyjmuje flage `randomize_amounts`
+6. **Deanonimizacja XLSX** — `deanonymize_xlsx()` musi obslugiwac oba formaty w mapie (tokeny tekstowe + losowe liczby)
+
+### Kolejnosc implementacji
+
+1. UI (checkbox + logika wyszarzania)
+2. Backend (parametr w endpoincie)
+3. Randomizacja w `export_anon_xlsx()`
+4. Deanonimizacja (obsluga losowych kwot w mapie)
+5. Testy manualne z przykladowym XLSX z formulami
 
 ---
 
-*Ten dokument zostanie zaktualizowany przed implementacja.*
+*Decyzje podjete 2026-04-08. Gotowe do implementacji.*
