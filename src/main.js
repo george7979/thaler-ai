@@ -285,6 +285,22 @@ function deactivateStep(stepId) {
     }
 }
 
+function resetDeanonResults() {
+    // Clear output
+    $deanonOutput.value = '';
+    $deanonInfo.textContent = '';
+    btnSaveDeanon._docxBlob = null;
+    btnSaveDeanon._docxName = null;
+    deactivateStep('step-deanon-4');
+    btnSaveDeanon.disabled = true;
+
+    // Clear map
+    deanonMapJson = null;
+    $mapFileName.textContent = '';
+    deactivateStep('step-deanon-3');
+    btnDeanonymize.disabled = true;
+}
+
 function resetAnonResults() {
     // Clear output
     $output.value = '';
@@ -535,9 +551,8 @@ deanonFileInput.addEventListener('change', async () => {
 
     $deanonFileName.textContent = file.name;
     appendLog('Wczytano plik do de-anonimizacji: ' + file.name);
-    // Clear stale state from previous session
-    btnSaveDeanon._docxBlob = null;
-    btnSaveDeanon._docxName = null;
+    // Reset previous deanon results
+    resetDeanonResults();
     activateStep('step-deanon-2');
     btnOpenMap.disabled = false;
     deanonFileInput.value = '';
@@ -553,7 +568,6 @@ mapFileInput.addEventListener('change', async () => {
     deanonMapJson = await file.text();
     $mapFileName.textContent = file.name;
     appendLog('Wczytano mapę: ' + file.name);
-
     activateStep('step-deanon-3');
     btnDeanonymize.disabled = false;
     setStatus('Mapa wczytana — kliknij De-anonimizuj', 'ok');
