@@ -57,11 +57,28 @@ Po uruchomieniu aplikacji:
 
 1. W polu **Ollama URL** wpisz adres swojej instancji Ollama (domyslnie `http://localhost:11434`). Jesli Ollama dziala na innej maszynie w sieci, wpisz jej adres, np. `http://192.168.1.100:11434`
 2. Kliknij **Sprawdz** — aplikacja polczy sie z Ollama i zaladuje liste dostepnych modeli
-3. Wybierz model z listy rozwijanej
+3. Wybierz model z listy rozwijanej (zobacz [Wybor modelu](#wybor-modelu) ponizej)
 
-Przetestowane modele:
-- **Bielik 11B** (Q8_0) — szybki, zoptymalizowany pod jezyk polski
-- **Gemma4 26B** (A4B Q4_K_M) — wolniejszy, ale dokladniejszy
+## Wybor modelu
+
+Thaler AI dziala z dowolnym modelem dostepnym w Ollama. Jakosc anonimizacji zalezy bezposrednio od modelu — wieksze i wyspecjalizowane modele wykrywaja wiecej encji.
+
+### Przetestowane modele:
+
+| Model | Rozmiar | Jezyk | Zastosowanie |
+|-------|---------|-------|--------------|
+| **Bielik 11B** (`SpeakLeash/bielik-11b-v3.0-instruct:Q4_K_M`) | 11B | polski | Zalecany do polskich dokumentow — szybki, dobrze rozpoznaje polskie nazwy, adresy, numery ID |
+| **Gemma4 26B** (`gemma4:26b-a4b-it-q4_K_M`) | 26B (MoE) | wielojezyczny | Dokladny, dobrze radzi sobie ze zlożonymi dokumentami |
+| **Codestral** (`codestral:latest`) | 22B | wielojezyczny | Model "kodujacy" — dobrze radzi sobie z danymi tabelarycznymi i liczbowymi w XLSX |
+| **Gemma4** (`gemma4:latest`) | ~9B | wielojezyczny | Szybki, ale moze pomijac encje w arkuszach kalkulacyjnych |
+
+### Rekomendacje:
+
+- **Polskie dokumenty tekstowe (DOCX, TXT):** Bielik 11B — najlepsza jakosc dla polskiego jezyka
+- **Arkusze kalkulacyjne (XLSX):** Gemma4 26B lub Codestral — lepiej interpretuja dane tabelaryczne bez kontekstu zdaniowego. Modele "kodujace" (Codestral) dobrze rozpoznaja struktury liczbowe
+- **Szybkie przetwarzanie:** Gemma4 latest (~9B) — najszybszy, ale mniejsza skutecznosc na zlozonych dokumentach
+
+> **Uwaga:** Mniejsze modele (np. `gemma4:latest` ~9B) moga miec trudnosci z rozpoznawaniem encji w zlozonych arkuszach kalkulacyjnych, gdzie dane sa prezentowane w formie tabelarycznej bez kontekstu zdaniowego. Opcja **losowe (XLSX)** dziala niezaleznie od modelu — nawet jesli model nie rozpozna kwot, wszystkie wartosci liczbowe zostana zanonimizowane.
 
 ## Anonimizacja
 
@@ -75,18 +92,19 @@ Przetestowane modele:
    - **Kwoty** — kwoty pieniezne, numery kont bankowych
    - **Kontakt** — numery telefonow, adresy email
    - **Daty** — konkretne daty
+   - **losowe (XLSX)** — podmiana kwot na losowe 6-cyfrowe liczby zamiast tokenow tekstowych (dostepne gdy zaznaczona kategoria Kwoty i wczytany plik XLSX)
 
    Najedz myszka na checkbox, aby zobaczyc dokladne typy danych w tooltipie.
 
-4. Kliknij **Anonimizuj** — model LLM przeanalizuje dokument i wykryje dane wrazliwe
-5. Zanonimizowany tekst pojawi sie w panelu wyjsciowym, a tabela mapowania pokaze tokeny (np. `[TH_OSOBA_001]`, `[TH_FIRMA_002]`)
+4. Kliknij **Anonimizuj** — model LLM przeanalizuje dokument i wykryje dane wrazliwe. Dla plikow XLSX z wlaczona opcja **losowe** dodatkowo wszystkie wartosci liczbowe w komorkach (bez formul) zostana zamienione na losowe liczby — niezaleznie od tego, co wykryl model.
+5. Zanonimizowany tekst pojawi sie w panelu wyjsciowym, a tabela mapowania pokaze tokeny (np. `[TH_OSOBA_001]`, `[TH_FIRMA_002]`) oraz losowe kwoty
 6. Kliknij **Pobierz plik + mape** — pobierzesz:
    - Zanonimizowany dokument (`.anon.docx` / `.anon.xlsx` / `.anon.md`)
    - Plik mapowania (`.map.json`) — przechowuj go bezpiecznie, jest potrzebny do odtworzenia oryginalnych danych
 
 Zanonimizowany dokument mozesz bezpiecznie przeslac do chmurowych uslug AI (Claude, GPT, Gemini).
 
-> **Uwaga (XLSX):** Kwoty i inne wartosci liczbowe sa obecnie zastepowane tokenami tekstowymi (np. `[TH_KWOTA_001]`), nie losowymi liczbami. W arkuszach kalkulacyjnych z formulami (np. `=SUMA()`) formuly nie beda dzialac poprawnie na tokenach. Planujemy zamiane na losowe wartosci liczbowe w przyszlej wersji.
+> **Losowe kwoty w XLSX:** Opcja **losowe (XLSX)** zamienia wszystkie wartosci liczbowe na losowe 6-cyfrowe liczby. Formuly (`=SUMA()`, `=SREDNIA()` itp.) nie sa modyfikowane — zachowuja swoja strukture i przeliczaja sie automatycznie na podstawie nowych wartosci. Dzieki temu arkusz pozostaje w pelni funkcjonalny. Zamiana kwot dziala niezaleznie od modelu LLM — nawet jesli model nie rozpozna kwot, wszystkie wartosci liczbowe zostana zanonimizowane.
 
 ## De-anonimizacja
 

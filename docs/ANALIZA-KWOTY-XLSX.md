@@ -1,7 +1,8 @@
 # Analiza: Losowe kwoty zamiast tokenów w XLSX
 
 **Data:** 2026-04-05
-**Status:** Analiza wstepna, do implementacji
+**Zaimplementowane:** 2026-04-08 (v0.4.3)
+**Status:** ✅ Zaimplementowane
 
 ---
 
@@ -140,4 +141,15 @@ w tekscie                 w pliku wyjsciowym
 
 ---
 
-*Decyzje podjete 2026-04-08. Gotowe do implementacji.*
+## Zmiany wzgledem planu (odkryte podczas implementacji)
+
+- **Randomizacja niezalezna od NER** — poczatkowo plan zakladal uzycie mapy encji z NER do identyfikacji kwot. W praktyce NER (szczegolnie mniejsze modele) pomijal kwoty w arkuszach. Finalna implementacja skanuje XML bezposrednio — KAZDA numeryczna `<v>` bez formuly jest randomizowana, niezaleznie od NER.
+- **`prepare_random_amounts()` przy "Anonimizuj"** — mapa randomizacji budowana jest w fazie anonimizacji (nie eksportu), dzieki czemu logi i tabela mapowania pokazuja losowe kwoty od razu.
+- **Self-closing `<c.../>`** — puste komorki w XML sa self-closing, co lamialo regex `(<c\s[^>]*>)(.*?)(</c>)`. Fix: expand do `<c...></c>` przed przetwarzaniem.
+- **Shared formulas `<f t="shared"...>`** — wiekszosc formul w XLSX to shared formulas. Check `contains("<f>")` pomiijal je (matchowal tylko `<f>`). Fix: `contains("<f")`.
+- **`calcChain.xml`** — usuwany z outputu. Zawiera stale referencje do formul, Excel odbudowuje go automatycznie.
+- **`fullCalcOnLoad="1"`** — dodawane do `<calcPr>` w workbook.xml (anon i restored). Wymusza pelne przeliczenie formul przy otwieraniu — eliminuje stale cached `<v>` w formulach.
+
+---
+
+*Implementacja ukonczona 2026-04-08 (v0.4.3). Przetestowane na wieloarkuszowych XLSX z formulami — roundtrip 100% (poza drobnymi rozniciami case w deduplikacji NER).*

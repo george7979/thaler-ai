@@ -73,6 +73,7 @@ Thaler AI to aplikacja (localhost web app) do anonimizacji dokumentów przed prz
 - **FR2.3** Podgląd wykrytych encji przed zatwierdzeniem (tabela mapowań)
 - **FR2.4** Konfiguracja kategorii anonimizacji — checkboxy do wyłączania typów (Osoby, Adresy, Firmy, Numery ID, Kwoty, Kontakt, Daty)
 - **FR2.5** Wybór modelu LLM przez użytkownika
+- **FR2.6** Losowe kwoty w XLSX — zamiana wartości liczbowych na losowe 6-cyfrowe liczby zamiast tokenów tekstowych, z zachowaniem formuł i formatowania arkusza. Niezależne od wykrywania NER.
 
 ### FR3: De-anonimizacja
 - **FR3.1** Odtworzenie oryginalnych danych z tokenów

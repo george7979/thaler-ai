@@ -9,7 +9,7 @@
 
 **Autor:** Jerzy Maczewski
 **Start projektu:** 2026-03-26
-**Aktualna wersja:** v0.4.2
+**Aktualna wersja:** v0.4.3
 **Faza:** Early access — publiczny dostęp, aktywny rozwój
 
 ---
@@ -17,7 +17,7 @@
 ## Co dalej
 
 ### Krytyczne:
-- [ ] Losowe kwoty zamiast tokenów w XLSX — zachowanie formuł i formatowania (analiza: `docs/ANALIZA-KWOTY-XLSX.md`)
+- [x] Losowe kwoty zamiast tokenów w XLSX — zachowanie formuł i formatowania (analiza: `docs/ANALIZA-KWOTY-XLSX.md`)
 - [ ] Testy na prawdziwych dokumentach — walidacja skuteczności wykrywania
 - [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi (Windows)
 
@@ -51,6 +51,15 @@
 ---
 
 ## Ukończone
+
+### v0.4.3 (2026-04-08):
+- ✅ Losowe kwoty w XLSX — checkbox "losowe (XLSX)", zamiana WSZYSTKICH wartości liczbowych na losowe 6-cyfrowe
+- ✅ Randomizacja niezależna od NER — skan XML bezpośrednio, działa nawet gdy model nie rozpozna kwot
+- ✅ Obsługa self-closing `<c/>` w XML — poprawne parsowanie pustych komórek
+- ✅ Usunięcie `calcChain.xml` — eliminacja ostrzeżeń Excel o naprawie
+- ✅ `fullCalcOnLoad` w workbook.xml — wymuszenie przeliczenia formuł przy otwieraniu (anon + restored)
+- ✅ Fix shared formulas `<f t="shared">` — poprawne pomijanie formuł z atrybutami
+- ✅ Rozbicie statystyk deanonimizacji — "kwoty: X, tekst: Y" w logach
 
 ### v0.4.2 (2026-04-05):
 - ✅ Regex safety net — deterministyczne wykrywanie nr dowodu osobistego (`[A-Z]{3}\d{6}`)
@@ -111,6 +120,7 @@
 | 2026-04-05 | v0.4.0 | Filtry kategorii, /api/chat, fix parsera JSON, wyświetlanie wersji |
 | 2026-04-05 | v0.4.1 | Motyw ciemny/jasny, fix heartbeat, anonimizacja hiperlinków XLSX, fix bezpieczeństwa |
 | 2026-04-05 | v0.4.2 | Regex safety net, dynamiczne typy encji, CI/CD, ikona, Windows .msi |
+| 2026-04-08 | v0.4.3 | Losowe kwoty XLSX, fix shared formulas, fullCalcOnLoad, self-closing cells |
 
 ---
 

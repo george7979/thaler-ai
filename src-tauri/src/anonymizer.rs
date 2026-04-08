@@ -781,7 +781,7 @@ impl Anonymizer {
                 created: chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
                 model: self.last_model_used.clone(),
                 entities_count: self.entities.len(),
-                thaler_version: "0.3.0".to_string(),
+                thaler_version: env!("CARGO_PKG_VERSION").to_string(),
             },
             entities: self.get_mapping(),
             reverse: self.reverse.clone(),
@@ -876,7 +876,7 @@ impl Anonymizer {
     }
 
     /// Export anonymized XLSX — replaces entities in xl/sharedStrings.xml inside the original ZIP
-    pub fn export_anon_xlsx(&self) -> Result<Vec<u8>, String> {
+    pub fn export_anon_xlsx(&mut self, randomize_amounts: bool) -> Result<Vec<u8>, String> {
         let original_bytes = self.original_file_bytes.as_ref()
             .ok_or("Brak oryginalnego pliku XLSX w pamięci")?;
 
@@ -894,9 +894,173 @@ impl Anonymizer {
             .build(&patterns)
             .unwrap();
 
-        Self::replace_in_xlsx_shared_strings(original_bytes, |text| {
-            ac.replace_all(text, &replacements)
-        })
+        if !randomize_amounts {
+            return Self::replace_in_xlsx_shared_strings(original_bytes, |text| {
+                ac.replace_all(text, &replacements)
+            });
+        }
+
+        // --- Randomize amounts mode ---
+        // Use pre-built random map from prepare_random_amounts() (called at "Anonimizuj" time).
+        // Build a lookup: original_value → random_token for AMOUNT entities.
+        let amount_lookup: HashMap<&str, &str> = self.entities.iter()
+            .filter(|(_, info)| info.entity_type == "AMOUNT")
+            .map(|(orig, info)| (orig.as_str(), info.token.as_str()))
+            .collect();
+
+        let cursor = std::io::Cursor::new(original_bytes);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .map_err(|e| format!("Nie mogę otworzyć XLSX: {}", e))?;
+
+        let re_t = regex::Regex::new(r"(?s)(<t[^>]*>)(.*?)(</t>)").unwrap();
+        let re_v = regex::Regex::new(r"(?s)(<v>)(.*?)(</v>)").unwrap();
+        let re_cell_block = regex::Regex::new(r"(?s)(<c\s[^>]*>)(.*?)(</c>)").unwrap();
+        // Convert self-closing <c .../> to <c ...></c> before processing
+        let re_cell_selfclose = regex::Regex::new(r"<c(\s[^>]*?)\s*/>").unwrap();
+
+        let mut modified_files: HashMap<String, Vec<u8>> = HashMap::new();
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i)
+                .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
+            let name = entry.name().to_string();
+
+            use std::io::Read;
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)
+                .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+
+            if name == "xl/workbook.xml" {
+                // Force full recalculation on open — cached <v> in formula cells are stale
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let modified = regex::Regex::new(r"<calcPr([^/]*?)/>")
+                    .unwrap()
+                    .replace(&xml, |caps: &regex::Captures| {
+                        let attrs = &caps[1];
+                        if attrs.contains("fullCalcOnLoad") {
+                            format!("<calcPr{}/>", attrs)
+                        } else {
+                            format!("<calcPr{} fullCalcOnLoad=\"1\"/>", attrs)
+                        }
+                    }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else if name == "xl/sharedStrings.xml" {
+                // Shared strings — apply token replacement for non-amount entities
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let modified = re_t.replace_all(&xml, |caps: &regex::Captures| {
+                    let open_tag = &caps[1];
+                    let content = ac.replace_all(&caps[2], &replacements);
+                    let close_tag = &caps[3];
+                    format!("{}{}{}", open_tag, content, close_tag)
+                }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else if name.starts_with("xl/worksheets/") && name.ends_with(".xml") {
+                let xml = String::from_utf8_lossy(&buf).to_string();
+
+                // Expand self-closing <c .../> to <c ...></c> so re_cell_block works correctly
+                let xml = re_cell_selfclose.replace_all(&xml, |caps: &regex::Captures| {
+                    format!("<c{}></c>", &caps[1])
+                }).to_string();
+
+                let result = re_cell_block.replace_all(&xml, |caps: &regex::Captures| {
+                    let open_c = &caps[1];
+                    let inner = &caps[2];
+                    let close_c = &caps[3];
+
+                    let has_formula = inner.contains("<f");
+                    let is_shared_string = open_c.contains("t=\"s\"");
+
+                    if has_formula || is_shared_string {
+                        return format!("{}{}{}", open_c, inner, close_c);
+                    }
+
+                    // Non-formula, non-shared-string cell — apply random from pre-built map
+                    let new_inner = re_v.replace_all(inner, |vcaps: &regex::Captures| {
+                        let v_open = &vcaps[1];
+                        let value = &vcaps[2];
+                        let v_close = &vcaps[3];
+
+                        // Exact match against pre-built amount lookup
+                        if let Some(rand_token) = amount_lookup.get(value) {
+                            return format!("{}{}{}", v_open, rand_token, v_close);
+                        }
+
+                        // Not in amount map — leave unchanged
+                        format!("{}{}{}", v_open, value, v_close)
+                    }).to_string();
+
+                    // Handle inline <t> tags — token replacement for text
+                    let new_inner = re_t.replace_all(&new_inner, |tcaps: &regex::Captures| {
+                        let t_open = &tcaps[1];
+                        let content = ac.replace_all(&tcaps[2], &replacements);
+                        let t_close = &tcaps[3];
+                        format!("{}{}{}", t_open, content, t_close)
+                    }).to_string();
+
+                    format!("{}{}{}", open_c, new_inner, close_c)
+                }).to_string();
+
+                // Fix cell types for any token replacements in non-randomized cells
+                let step2 = Self::fix_xlsx_cell_types(&result, &re_v);
+                let final_xml = Self::restore_xlsx_cell_types(&step2);
+
+                modified_files.insert(name, final_xml.into_bytes());
+            } else if name.contains("_rels/") && name.ends_with(".rels") {
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let re_target = regex::Regex::new(r#"Target="([^"]*)""#).unwrap();
+                let modified = re_target.replace_all(&xml, |caps: &regex::Captures| {
+                    let target = &caps[1];
+                    let replaced = ac.replace_all(target, &replacements);
+                    format!(r#"Target="{}""#, replaced)
+                }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else {
+                modified_files.insert(name, buf);
+            }
+        }
+
+        // Rebuild ZIP
+        let mut output_buf = Vec::new();
+        {
+            let w = std::io::Cursor::new(&mut output_buf);
+            let mut zip_writer = zip::ZipWriter::new(w);
+
+            let cursor2 = std::io::Cursor::new(original_bytes);
+            let mut archive2 = zip::ZipArchive::new(cursor2)
+                .map_err(|e| format!("Nie mogę otworzyć XLSX: {}", e))?;
+
+            for i in 0..archive2.len() {
+                let entry = archive2.by_index(i)
+                    .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
+
+                let options = zip::write::SimpleFileOptions::default()
+                    .compression_method(entry.compression());
+
+                let name = entry.name().to_string();
+
+                // Skip calcChain.xml — Excel rebuilds it automatically,
+                // and stale entries cause "repair" warnings
+                if name == "xl/calcChain.xml" {
+                    continue;
+                }
+
+                zip_writer.start_file(&name, options)
+                    .map_err(|e| format!("Błąd zapisu ZIP {}: {}", name, e))?;
+
+                if let Some(data) = modified_files.get(&name) {
+                    use std::io::Write;
+                    zip_writer.write_all(data)
+                        .map_err(|e| format!("Błąd zapisu {}: {}", name, e))?;
+                }
+            }
+
+            zip_writer.finish()
+                .map_err(|e| format!("Błąd finalizacji ZIP: {}", e))?;
+        }
+
+        // Entity map already updated by prepare_random_amounts()
+
+        Ok(output_buf)
     }
 
     /// Deanonymize an XLSX file — replace tokens with originals
@@ -906,6 +1070,12 @@ impl Anonymizer {
 
         let mut pairs: Vec<_> = map.reverse.iter().collect();
         pairs.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+
+        // Separate numeric keys (random amounts) from token keys ([TH_...])
+        let numeric_pairs: HashMap<&str, &str> = pairs.iter()
+            .filter(|(k, _)| k.chars().all(|c| c.is_ascii_digit()))
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
         // Extract XML content from ZIP to count tokens
         let cursor = std::io::Cursor::new(xlsx_bytes);
@@ -936,15 +1106,180 @@ impl Anonymizer {
             }
         }
 
-        let bytes = Self::replace_in_xlsx_shared_strings(xlsx_bytes, |text| {
+        // If no numeric (random amount) keys, use simple bulk replace
+        if numeric_pairs.is_empty() {
+            let bytes = Self::replace_in_xlsx_shared_strings(xlsx_bytes, |text| {
+                let mut result = text.to_string();
+                for (token, original) in &pairs {
+                    result = result.replace(token.as_str(), original.as_str());
+                }
+                result
+            })?;
+            return Ok((bytes, DeanonStats { total, found, missing }));
+        }
+
+        // Formula-aware deanonymization: skip formula cells for numeric replacements
+        let cursor2 = std::io::Cursor::new(xlsx_bytes);
+        let mut archive2 = zip::ZipArchive::new(cursor2)
+            .map_err(|e| format!("Nie mogę otworzyć XLSX: {}", e))?;
+
+        let re_t = regex::Regex::new(r"(?s)(<t[^>]*>)(.*?)(</t>)").unwrap();
+        let re_v = regex::Regex::new(r"(?s)(<v>)(.*?)(</v>)").unwrap();
+        let re_cell_block = regex::Regex::new(r"(?s)(<c\s[^>]*>)(.*?)(</c>)").unwrap();
+        let re_cell_selfclose = regex::Regex::new(r"<c(\s[^>]*?)\s*/>").unwrap();
+
+        let text_replacer = |text: &str| -> String {
             let mut result = text.to_string();
             for (token, original) in &pairs {
                 result = result.replace(token.as_str(), original.as_str());
             }
             result
-        })?;
+        };
 
-        Ok((bytes, DeanonStats { total, found, missing }))
+        let mut modified_files: HashMap<String, Vec<u8>> = HashMap::new();
+
+        for i in 0..archive2.len() {
+            let mut entry = archive2.by_index(i)
+                .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
+            let name = entry.name().to_string();
+
+            use std::io::Read;
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)
+                .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+
+            if name == "xl/workbook.xml" {
+                // Force full recalculation on open
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let modified = regex::Regex::new(r"<calcPr([^/]*?)/>")
+                    .unwrap()
+                    .replace(&xml, |caps: &regex::Captures| {
+                        let attrs = &caps[1];
+                        if attrs.contains("fullCalcOnLoad") {
+                            format!("<calcPr{}/>", attrs)
+                        } else {
+                            format!("<calcPr{} fullCalcOnLoad=\"1\"/>", attrs)
+                        }
+                    }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else if name == "xl/sharedStrings.xml" {
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let modified = re_t.replace_all(&xml, |caps: &regex::Captures| {
+                    let open_tag = &caps[1];
+                    let content = text_replacer(&caps[2]);
+                    let close_tag = &caps[3];
+                    format!("{}{}{}", open_tag, content, close_tag)
+                }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else if name.starts_with("xl/worksheets/") && name.ends_with(".xml") {
+                let xml = String::from_utf8_lossy(&buf).to_string();
+
+                // Expand self-closing <c .../> to <c ...></c>
+                let xml = re_cell_selfclose.replace_all(&xml, |caps: &regex::Captures| {
+                    format!("<c{}></c>", &caps[1])
+                }).to_string();
+
+                let result = re_cell_block.replace_all(&xml, |caps: &regex::Captures| {
+                    let open_c = &caps[1];
+                    let inner = &caps[2];
+                    let close_c = &caps[3];
+
+                    let has_formula = inner.contains("<f");
+
+                    if has_formula {
+                        // Formula cell — skip numeric replacements, only replace text tokens
+                        let new_inner = re_t.replace_all(inner, |tcaps: &regex::Captures| {
+                            let t_open = &tcaps[1];
+                            let content = text_replacer(&tcaps[2]);
+                            let t_close = &tcaps[3];
+                            format!("{}{}{}", t_open, content, t_close)
+                        }).to_string();
+                        return format!("{}{}{}", open_c, new_inner, close_c);
+                    }
+
+                    // Non-formula cell — replace both numeric and text tokens
+                    let new_inner = re_v.replace_all(inner, |vcaps: &regex::Captures| {
+                        let v_open = &vcaps[1];
+                        let value = &vcaps[2];
+                        let v_close = &vcaps[3];
+
+                        // Check numeric map first (random amounts)
+                        if let Some(original) = numeric_pairs.get(value) {
+                            return format!("{}{}{}", v_open, original, v_close);
+                        }
+
+                        // Then text token replacement
+                        let replaced = text_replacer(value);
+                        format!("{}{}{}", v_open, replaced, v_close)
+                    }).to_string();
+
+                    let new_inner = re_t.replace_all(&new_inner, |tcaps: &regex::Captures| {
+                        let t_open = &tcaps[1];
+                        let content = text_replacer(&tcaps[2]);
+                        let t_close = &tcaps[3];
+                        format!("{}{}{}", t_open, content, t_close)
+                    }).to_string();
+
+                    let result = format!("{}{}{}", open_c, new_inner, close_c);
+                    result
+                }).to_string();
+
+                let step2 = Self::fix_xlsx_cell_types(&result, &re_v);
+                let final_xml = Self::restore_xlsx_cell_types(&step2);
+                modified_files.insert(name, final_xml.into_bytes());
+            } else if name.contains("_rels/") && name.ends_with(".rels") {
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let re_target = regex::Regex::new(r#"Target="([^"]*)""#).unwrap();
+                let modified = re_target.replace_all(&xml, |caps: &regex::Captures| {
+                    let target = &caps[1];
+                    let replaced = text_replacer(target);
+                    format!(r#"Target="{}""#, replaced)
+                }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else {
+                modified_files.insert(name, buf);
+            }
+        }
+
+        // Rebuild ZIP
+        let mut output_buf = Vec::new();
+        {
+            let w = std::io::Cursor::new(&mut output_buf);
+            let mut zip_writer = zip::ZipWriter::new(w);
+
+            let cursor3 = std::io::Cursor::new(xlsx_bytes);
+            let mut archive3 = zip::ZipArchive::new(cursor3)
+                .map_err(|e| format!("Nie mogę otworzyć XLSX: {}", e))?;
+
+            for i in 0..archive3.len() {
+                let entry = archive3.by_index(i)
+                    .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
+
+                let options = zip::write::SimpleFileOptions::default()
+                    .compression_method(entry.compression());
+
+                let name = entry.name().to_string();
+
+                // Skip calcChain.xml — Excel rebuilds it automatically
+                if name == "xl/calcChain.xml" {
+                    continue;
+                }
+
+                zip_writer.start_file(&name, options)
+                    .map_err(|e| format!("Błąd zapisu ZIP {}: {}", name, e))?;
+
+                if let Some(data) = modified_files.get(&name) {
+                    use std::io::Write;
+                    zip_writer.write_all(data)
+                        .map_err(|e| format!("Błąd zapisu {}: {}", name, e))?;
+                }
+            }
+
+            zip_writer.finish()
+                .map_err(|e| format!("Błąd finalizacji ZIP: {}", e))?;
+        }
+
+        Ok((output_buf, DeanonStats { total, found, missing }))
     }
 
     /// Helper: open XLSX ZIP, apply replacer function to text content in
@@ -972,7 +1307,21 @@ impl Anonymizer {
             entry.read_to_end(&mut buf)
                 .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
 
-            if name == "xl/sharedStrings.xml" {
+            if name == "xl/workbook.xml" {
+                // Force full recalculation on open
+                let xml = String::from_utf8_lossy(&buf).to_string();
+                let modified = regex::Regex::new(r"<calcPr([^/]*?)/>")
+                    .unwrap()
+                    .replace(&xml, |caps: &regex::Captures| {
+                        let attrs = &caps[1];
+                        if attrs.contains("fullCalcOnLoad") {
+                            format!("<calcPr{}/>", attrs)
+                        } else {
+                            format!("<calcPr{} fullCalcOnLoad=\"1\"/>", attrs)
+                        }
+                    }).to_string();
+                modified_files.insert(name, modified.into_bytes());
+            } else if name == "xl/sharedStrings.xml" {
                 // Replace in shared strings (<t> tags)
                 let xml = String::from_utf8_lossy(&buf).to_string();
                 let modified = re_t.replace_all(&xml, |caps: &regex::Captures| {
@@ -1042,6 +1391,12 @@ impl Anonymizer {
                     .compression_method(entry.compression());
 
                 let name = entry.name().to_string();
+
+                // Skip calcChain.xml — Excel rebuilds it automatically
+                if name == "xl/calcChain.xml" {
+                    continue;
+                }
+
                 zip_writer.start_file(&name, options)
                     .map_err(|e| format!("Błąd zapisu ZIP {}: {}", name, e))?;
 
@@ -1148,6 +1503,113 @@ impl Anonymizer {
     /// Check if we have original file bytes for native export
     pub fn has_original_file(&self) -> bool {
         self.original_file_bytes.is_some()
+    }
+
+    /// Count entities of type AMOUNT (for logging)
+    pub fn count_amount_entities(&self) -> usize {
+        self.entities.values().filter(|e| e.entity_type == "AMOUNT").count()
+    }
+
+    /// Scan XLSX XML and assign random 6-digit numbers to ALL numeric cell values
+    /// (non-formula, non-shared-string). Adds them to self.entities so they appear in logs and map.
+    /// Returns the number of unique values randomized.
+    pub fn prepare_random_amounts(&mut self) -> Result<usize, String> {
+        let original_bytes = self.original_file_bytes.as_ref()
+            .ok_or("Brak oryginalnych bajtów pliku")?;
+
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let mut used_randoms: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut value_random_map: HashMap<String, u32> = HashMap::new();
+
+        let cursor = std::io::Cursor::new(original_bytes);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .map_err(|e| format!("Nie mogę otworzyć XLSX: {}", e))?;
+
+        let re_cell_block = regex::Regex::new(r"(?s)(<c\s[^>]*>)(.*?)(</c>)").unwrap();
+        let re_cell_selfclose = regex::Regex::new(r"<c(\s[^>]*?)\s*/>").unwrap();
+        let re_v = regex::Regex::new(r"<v>([^<]+)</v>").unwrap();
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i)
+                .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
+            let name = entry.name().to_string();
+
+            if !(name.starts_with("xl/worksheets/") && name.ends_with(".xml")) {
+                continue;
+            }
+
+            use std::io::Read;
+            let mut xml = String::new();
+            entry.read_to_string(&mut xml)
+                .map_err(|e| format!("Błąd odczytu {}: {}", name, e))?;
+
+            // Expand self-closing <c .../> to <c ...></c>
+            let xml = re_cell_selfclose.replace_all(&xml, |caps: &regex::Captures| {
+                format!("<c{}></c>", &caps[1])
+            }).to_string();
+
+            for caps in re_cell_block.captures_iter(&xml) {
+                let open_c = &caps[1];
+                let inner = &caps[2];
+
+                // Skip formulas and shared strings
+                if inner.contains("<f") || open_c.contains("t=\"s\"") {
+                    continue;
+                }
+
+                // Extract <v> value
+                if let Some(vcaps) = re_v.captures(inner) {
+                    let value = &vcaps[1];
+
+                    // Only numeric values
+                    if value.parse::<f64>().is_err() {
+                        continue;
+                    }
+
+                    // Skip if already mapped
+                    if value_random_map.contains_key(value) {
+                        continue;
+                    }
+
+                    let rand_val = loop {
+                        let candidate: u32 = rng.gen_range(100000..999999);
+                        if !used_randoms.contains(&candidate) {
+                            break candidate;
+                        }
+                    };
+                    used_randoms.insert(rand_val);
+                    value_random_map.insert(value.to_string(), rand_val);
+                }
+            }
+        }
+
+        // Add to entity map
+        let count = value_random_map.len();
+        for (original_value, rand_val) in value_random_map {
+            let rand_str = rand_val.to_string();
+
+            // If NER already found this value, update its token
+            if let Some(info) = self.entities.get(&original_value) {
+                let old_token = info.token.clone();
+                self.reverse.remove(&old_token);
+                self.reverse.insert(rand_str.clone(), original_value.clone());
+                if let Some(entry) = self.entities.get_mut(&original_value) {
+                    entry.token = rand_str;
+                }
+            } else {
+                // New entity — add as AMOUNT
+                let entity_info = EntityInfo {
+                    original: original_value.clone(),
+                    token: rand_str.clone(),
+                    entity_type: "AMOUNT".to_string(),
+                };
+                self.entities.insert(original_value.clone(), entity_info);
+                self.reverse.insert(rand_str, original_value);
+            }
+        }
+
+        Ok(count)
     }
 
     /// Export anonymized DOCX — replaces entities in word/document.xml inside the original ZIP

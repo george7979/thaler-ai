@@ -229,6 +229,8 @@ struct AnonPayload {
     source_file: String,
     #[serde(default)]
     categories: Vec<String>,
+    #[serde(default)]
+    randomize_amounts: bool,
 }
 
 async fn anonymize_text(State(state): State<Arc<AppState>>, Json(payload): Json<AnonPayload>) -> Result<Json<anonymizer::AnonymizeResult>, (StatusCode, String)> {
@@ -239,7 +241,22 @@ async fn anonymize_text(State(state): State<Arc<AppState>>, Json(payload): Json<
     let result = anon.anonymize(&payload.text, &payload.source_file, cats).await;
     anon.clear_log_sink();
     match result {
-        Ok(r) => {
+        Ok(mut r) => {
+            // If randomize_amounts is on and we have XLSX bytes, scan XML and assign randoms
+            if payload.randomize_amounts && anon.has_original_file() {
+                let ext = anon.get_original_ext().to_string();
+                if ext == "xlsx" || ext == "xls" {
+                    match anon.prepare_random_amounts() {
+                        Ok(count) => {
+                            state.log(&format!("Losowe kwoty: {} unikalnych wartości liczbowych", count));
+                            r.entities_found += count;
+                        }
+                        Err(e) => {
+                            state.log(&format!("BŁĄD losowych kwot: {}", e));
+                        }
+                    }
+                }
+            }
             state.log(&format!("Zakończono: {} encji, model: {}", r.entities_found, r.model_used));
             Ok(Json(r))
         }
@@ -266,9 +283,19 @@ async fn export_map(State(state): State<Arc<AppState>>) -> Result<impl IntoRespo
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
-async fn export_anon_native(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let anon = state.anonymizer.lock().await;
+#[derive(serde::Deserialize)]
+struct ExportNativeQuery {
+    #[serde(default)]
+    randomize_amounts: Option<String>,
+}
+
+async fn export_anon_native(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(query): axum::extract::Query<ExportNativeQuery>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let mut anon = state.anonymizer.lock().await;
     let ext = anon.get_original_ext().to_string();
+    let randomize = query.randomize_amounts.as_deref() == Some("1");
 
     match ext.as_str() {
         "docx" => {
@@ -284,7 +311,7 @@ async fn export_anon_native(State(state): State<Arc<AppState>>) -> Result<impl I
             ))
         }
         "xlsx" | "xls" => {
-            let bytes = anon.export_anon_xlsx()
+            let bytes = anon.export_anon_xlsx(randomize)
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
             Ok((
                 StatusCode::OK,

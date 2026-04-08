@@ -85,7 +85,8 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 - **Deterministyczne tokeny:** [TH_FIRMA_001], [TH_OSOBA_002] itp. (prefiks TH_ zapobiega kolizjom) — ✅ Gotowe
 - **Eksport DOCX→DOCX:** anonimizacja/deanonimizacja z zachowaniem formatowania Word — ✅ Gotowe
 - **Eksport XLSX→XLSX:** anonimizacja/deanonimizacja przez sharedStrings + komórki numeryczne — ✅ Gotowe
-- **Statystyki deanonimizacji:** licznik zamienionych tokenów + raport brakujących — ✅ Gotowe
+- **Losowe kwoty XLSX:** checkbox "losowe (XLSX)" — zamiana WSZYSTKICH wartości liczbowych na losowe 6-cyfrowe, niezależnie od NER. Formuły i shared strings pomijane. Obsługa self-closing `<c/>`, shared formulas `<f t="shared">`, usunięcie `calcChain.xml`, wymuszenie `fullCalcOnLoad` — ✅ Gotowe
+- **Statystyki deanonimizacji:** licznik zamienionych tokenów + raport brakujących + rozbicie kwoty/tekst — ✅ Gotowe
 - **De-anonimizacja:** odwrócenie token→oryginał (tekst + DOCX) — ✅ Gotowe
 - **Tabela mapowań w UI:** Token ↔ typ ↔ oryginał — ✅ Gotowe
 - **Ciemny/jasny motyw UI:** przełącznik z autodetekcją systemową (`prefers-color-scheme`) — ✅ Gotowe
@@ -105,6 +106,8 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 
 - XLSX → markdown traci formatowanie (scalone komórki, kolory) — calamine zwraca tylko dane tekstowe
 - Brak podpisu cyfrowego — Windows SmartScreen wyswietla ostrzezenie przy pierwszym uruchomieniu
+- **Mniejsze modele (np. gemma4:latest ~9B) mają trudności z rozpoznawaniem encji w arkuszach XLSX** — dane tabelaryczne bez kontekstu zdaniowego są słabo interpretowane. Zalecane: Bielik 11B+ (polski) lub Gemma4 26B (wielojęzyczny). Randomizacja kwot ("losowe XLSX") działa niezależnie od modelu.
+- **Case sensitivity przy roundtrip** — ta sama nazwa w różnych wariantach (np. "JERZY" i "Jerzy") jest mapowana na jeden token. Przy deanonimizacji jeden wariant wygrywa — drobne różnice w casingu mogą wystąpić
 
 ---
 
@@ -191,10 +194,10 @@ thaler-ai/
 | GET | `/api/get-config` | — | `{url, model}` | Aktualna konfiguracja |
 | POST | `/api/set-config` | `{url, model}` | `"ok"` | Zmiana URL/modelu Ollama |
 | POST | `/api/load-file` | multipart file | `"text..."` | Parsowanie pliku do tekstu |
-| POST | `/api/anonymize` | `{text, source_file, categories?}` | `AnonymizeResult` | Wykrywanie encji + tokenizacja |
+| POST | `/api/anonymize` | `{text, source_file, categories?, randomize_amounts?}` | `AnonymizeResult` | Wykrywanie encji + tokenizacja + opcjonalnie randomizacja kwot XLSX |
 | GET | `/api/get-mapping` | — | `[EntityInfo, ...]` | Tabela mapowań |
 | GET | `/api/export-map` | — | `AnonMap JSON` | Pełna mapa do zapisu |
-| GET | `/api/export-anon-native` | — | DOCX/XLSX bytes | Eksport zanonimizowanego pliku (format natywny) |
+| GET | `/api/export-anon-native` | `?randomize_amounts=0\|1` | DOCX/XLSX bytes | Eksport zanonimizowanego pliku (format natywny) |
 | POST | `/api/deanonymize` | `{anon_text, map_json}` | `"restored text"` | Odtworzenie oryginału (tekst) |
 | POST | `/api/deanonymize-docx` | multipart: file + map_json | DOCX bytes | Odtworzenie oryginału (DOCX) |
 | GET | `/api/logs` | — | `[String]` | Pobranie nowych logów (polling) |
@@ -326,6 +329,38 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
    - Znane typy: `PERSON` → `[TH_OSOBA_001]`, `COMPANY` → `[TH_FIRMA_001]` itp.
    - Nieznane typy: model wymyśla typ → token go odzwierciedla, np. `NR_ARIMR` → `[TH_NR_ARIMR_001]`
 8. **Zamiana** w tekście — single-pass przez Aho-Corasick (O(n), najdłuższe dopasowania priorytetowe)
+
+### Ścieżka randomizacji kwot XLSX:
+
+Gdy checkbox "losowe (XLSX)" jest zaznaczony, po kroku 8 uruchamia się dodatkowy pipeline:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  9. PREPARE_RANDOM_AMOUNTS        (przy "Anonimizuj")   │
+│     ZIP → xl/worksheets/sheet*.xml → regex cell blocks  │
+│     Expand self-closing <c.../> → <c...></c>            │
+│     Dla każdej komórki: skip formuły (<f) + shared str  │
+│     Każda numeryczna <v> → losowa 6-cyfrowa (100000-    │
+│     999999), deterministyczna per wartość                │
+│     Wynik: mapa original→random dodana do self.entities │
+└──────────────────────┬──────────────────────────────────┘
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  10. EXPORT_ANON_XLSX             (przy "Pobierz")      │
+│     Użycie gotowej mapy z kroku 9                       │
+│     sharedStrings.xml → AC replacement (tokeny tekst.)  │
+│     worksheets → exact match <v> z mapy (losowe kwoty)  │
+│     workbook.xml → fullCalcOnLoad="1"                   │
+│     Pominięcie calcChain.xml                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Kluczowe decyzje:**
+- Randomizacja **niezależna od NER** — skanuje XML bezpośrednio, działa nawet z 0 encji z modelu
+- **Exact match** HashMap zamiast Aho-Corasick w `<v>` tagach — zapobiega substring collision (np. "0" w "30000")
+- **Self-closing `<c.../>`** expandowane przed parsowaniem — zapobiega przesunięciu granic komórek w regex
+- **Shared formulas** (`<f t="shared"...>`) wykrywane przez `contains("<f")` nie `contains("<f>")`
+- **`fullCalcOnLoad="1"`** dodawane do anon i restored — wymusza przeliczenie cached `<v>` w formułach
 
 ### Uwaga dot. DOCX:
 - Bielik 11B jest wrażliwy na białe znaki — `\n\n` między akapitami obniża skuteczność z 7 do 1 encji

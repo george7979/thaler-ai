@@ -54,8 +54,13 @@ const btnSaveDeanon = document.getElementById('btn-save-deanon');
 const btnModeAnon = document.getElementById('btn-mode-anon');
 const btnModeDeanon = document.getElementById('btn-mode-deanon');
 
+// Random amounts sub-checkbox
+const $randomAmountsOpt = document.getElementById('random-amounts-opt');
+const $chkRandomAmounts = document.getElementById('chk-random-amounts');
+
 // --- State ---
 let currentSourceName = null;
+let currentSourceExt = null;
 let currentAnonText = null;
 let currentMapJson = null;
 let deanonText = null;
@@ -129,6 +134,21 @@ btnCopyLogs.addEventListener('click', () => {
 btnClearLogs.addEventListener('click', () => {
     $logOutput.textContent = '';
 });
+
+// --- Random amounts checkbox logic ---
+function updateRandomAmountsState() {
+    const isXlsx = currentSourceExt === 'xlsx' || currentSourceExt === 'xls';
+    const amountCb = document.querySelector('.category-panel input[value="AMOUNT"]');
+    const amountChecked = amountCb && amountCb.checked;
+    const enabled = isXlsx && amountChecked;
+    $chkRandomAmounts.disabled = !enabled;
+    $randomAmountsOpt.classList.toggle('disabled', !enabled);
+    if (!enabled) $chkRandomAmounts.checked = false;
+}
+
+// React to AMOUNT category toggle
+document.querySelector('.category-panel input[value="AMOUNT"]')
+    .addEventListener('change', updateRandomAmountsState);
 
 // --- Heartbeat & shutdown ---
 function sendHeartbeat() {
@@ -297,6 +317,8 @@ fileInput.addEventListener('change', async () => {
         currentSourceName = file.name;
 
         const ext = file.name.split('.').pop().toLowerCase();
+        currentSourceExt = ext;
+        updateRandomAmountsState();
         let text;
 
         if (['xlsx', 'xls', 'docx'].includes(ext)) {
@@ -341,14 +363,14 @@ btnAnonymize.addEventListener('click', async () => {
         const result = await api('anonymize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, source_file: currentSourceName || 'unknown', categories })
+            body: JSON.stringify({ text, source_file: currentSourceName || 'unknown', categories, randomize_amounts: $chkRandomAmounts.checked })
         });
 
         currentAnonText = result.text;
         $output.value = result.text;
         $anonInfo.textContent = result.entities_found + ' encji | ' + result.model_used;
 
-        if (result.entities_found === 0) {
+        if (result.entities_found === 0 && !$chkRandomAmounts.checked) {
             setStatus('0 encji — model nie znalazł danych wrażliwych', 'error');
         } else {
             // export-map returns a JSON string (already serialized map)
@@ -360,7 +382,11 @@ btnAnonymize.addEventListener('click', async () => {
             activateStep('step-anon-3');
             btnSaveAnon.disabled = false;
 
-            setStatus('Anonimizacja OK — ' + result.entities_found + ' encji', 'ok');
+            if (result.entities_found === 0 && $chkRandomAmounts.checked) {
+                setStatus('NER: 0 encji — losowe kwoty zostaną wstawione przy pobraniu XLSX', 'ok');
+            } else {
+                setStatus('Anonimizacja OK — ' + result.entities_found + ' encji', 'ok');
+            }
         }
     } catch (e) {
         setStatus('Błąd: ' + (e.message || e), 'error');
@@ -415,7 +441,8 @@ btnSaveAnon.addEventListener('click', async () => {
     const isNative = ['docx', 'xlsx', 'xls'].includes(ext);
     if (isNative) {
         try {
-            const resp = await fetch('/api/export-anon-native');
+            const randomize = $chkRandomAmounts.checked ? '1' : '0';
+            const resp = await fetch('/api/export-anon-native?randomize_amounts=' + randomize);
             if (resp.ok) {
                 const blob = await resp.blob();
                 const a = document.createElement('a');
@@ -432,6 +459,11 @@ btnSaveAnon.addEventListener('click', async () => {
     } else {
         downloadFile(baseName + '.anon.md', currentAnonText);
     }
+
+    // Re-fetch map AFTER native export (randomize_amounts may have updated it)
+    try {
+        currentMapJson = await api('export-map');
+    } catch (_) {}
 
     // Always download the map
     const mapStr = typeof currentMapJson === 'string' ? currentMapJson : JSON.stringify(currentMapJson, null, 2);
@@ -535,9 +567,25 @@ btnDeanonymize.addEventListener('click', async () => {
 
             // Show stats in logs and info
             if (stats) {
+                // Count amounts vs text tokens from map
+                let amountCount = 0;
+                let textCount = 0;
+                try {
+                    const mapData = JSON.parse(deanonMapJson);
+                    if (mapData.entities) {
+                        for (const e of mapData.entities) {
+                            if (e.entity_type === 'AMOUNT') amountCount++;
+                            else textCount++;
+                        }
+                    }
+                } catch (_) {}
+
                 const info = stats.found + '/' + stats.total + ' tokenów zamieniono';
-                $deanonInfo.textContent = fileExt.toUpperCase() + ' odtworzony — ' + info;
-                appendLog('De-anonimizacja: ' + info);
+                const detail = amountCount > 0
+                    ? ' (kwoty: ' + amountCount + ', tekst: ' + textCount + ')'
+                    : '';
+                $deanonInfo.textContent = fileExt.toUpperCase() + ' odtworzony — ' + info + detail;
+                appendLog('De-anonimizacja: ' + info + detail);
                 if (stats.missing.length > 0) {
                     appendLog('Brakujące tokeny: ' + stats.missing.join(', '));
                 }
