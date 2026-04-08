@@ -31,7 +31,7 @@ Detects sensitive entities (persons, companies, amounts, dates, addresses, IDs) 
 
 - **No default model** — user must select from dropdown after clicking "Sprawdź"
 - **No fallback** — single model, user's explicit choice
-- **Tested:** Bielik 11B Q8_0 (fast, Polish), Gemma4 26B A4B Q4_K_M (thorough, multilingual)
+- **Tested:** Bielik 11B Q4_K_M (fast, Polish), Gemma4 26B A4B Q4_K_M (thorough, multilingual), Codestral (good with tabular/numeric data)
 - **API:** `/api/chat` with system + user messages (not `/api/generate`)
 - **Default endpoint:** http://localhost:11434 (configurable in UI or via OLLAMA_URL env)
 - **Model list:** populated from Ollama `/api/tags`
@@ -57,12 +57,12 @@ cargo wix --no-build     # build .msi (Windows) — output: target/wix/*.msi
 | GET | `/api/get-config` | Get current URL + model |
 | POST | `/api/set-config` | Set Ollama URL + model |
 | POST | `/api/load-file` | Upload file (multipart), returns text |
-| POST | `/api/anonymize` | NER + tokenize text (accepts optional `categories` array) |
+| POST | `/api/anonymize` | NER + tokenize text (accepts `categories`, `randomize_amounts`) |
 | GET | `/api/get-mapping` | Get entity mapping table |
 | GET | `/api/export-map` | Export full AnonMap JSON |
-| GET | `/api/export-anon-native` | Export anonymized DOCX (native format) |
+| GET | `/api/export-anon-native` | Export anonymized DOCX/XLSX (native format, `?randomize_amounts=1`) |
 | POST | `/api/deanonymize` | Restore original from tokens + map (text) |
-| POST | `/api/deanonymize-docx` | Restore original DOCX (multipart: file + map) |
+| POST | `/api/deanonymize-docx` | Restore original DOCX/XLSX (multipart: file + map) |
 | GET | `/api/logs` | Poll new log entries |
 | POST | `/api/heartbeat` | Keep server alive |
 | POST | `/api/shutdown` | Shut down server |
