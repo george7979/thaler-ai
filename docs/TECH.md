@@ -108,6 +108,7 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 - Brak podpisu cyfrowego — Windows SmartScreen wyswietla ostrzezenie przy pierwszym uruchomieniu
 - **Mniejsze modele (np. gemma4:latest ~9B) mają trudności z rozpoznawaniem encji w arkuszach XLSX** — dane tabelaryczne bez kontekstu zdaniowego są słabo interpretowane. Zalecane: Bielik 11B+ (polski) lub Gemma4 26B (wielojęzyczny). Randomizacja kwot ("losowe XLSX") działa niezależnie od modelu.
 - **Case sensitivity przy roundtrip** — ta sama nazwa w różnych wariantach (np. "JERZY" i "Jerzy") jest mapowana na jeden token. Przy deanonimizacji jeden wariant wygrywa — drobne różnice w casingu mogą wystąpić
+- **Phantom tokens w mapie XLSX (NER + losowe kwoty)** — calamine wyciąga z XLSX tekst zawierający wyniki formuł (np. `=SUMA()` → `40656`). NER traktuje je jak zwykłe wartości i tworzy tokeny `[TH_KWOTA_xxx]`. Ale `prepare_random_amounts` poprawnie pomija formuły w XML → te tokeny nigdy nie trafiają do pliku. Efekt: mapa zawiera encje których nie ma w XLSX, deanonimizacja raportuje "brakujące tokeny". **Dane są poprawne** — to problem wyłącznie kosmetyczny (zawyżony licznik w logach). Dotyczy modeli agresywnie rozpoznających kwoty (Codestral, Bielik). Planowany fix: filtr mapy — usunięcie encji AMOUNT których wartość nie istnieje w non-formula cells
 
 ---
 

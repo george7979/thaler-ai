@@ -90,9 +90,9 @@ Thaler AI dziala z dowolnym modelem dostepnym w Ollama. Jakosc anonimizacji zale
    - **Firmy** — nazwy firm, spolek, instytucji
    - **Numery ID** — NIP, REGON, KRS, PESEL, numery umow, inne identyfikatory
    - **Kwoty** — kwoty pieniezne, numery kont bankowych
+     - **losowe (XLSX)** — podmiana kwot na losowe 6-cyfrowe liczby zamiast tokenow tekstowych (dostepne gdy zaznaczona kategoria Kwoty i wczytany plik XLSX)
    - **Kontakt** — numery telefonow, adresy email
    - **Daty** — konkretne daty
-   - **losowe (XLSX)** — podmiana kwot na losowe 6-cyfrowe liczby zamiast tokenow tekstowych (dostepne gdy zaznaczona kategoria Kwoty i wczytany plik XLSX)
 
    Najedz myszka na checkbox, aby zobaczyc dokladne typy danych w tooltipie.
 
