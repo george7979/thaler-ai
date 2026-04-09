@@ -154,7 +154,8 @@ thaler-ai/
 ├── docs/
 │   ├── PRD.md              # Wymagania (CO i DLACZEGO)
 │   ├── PLAN.md             # Plan implementacji (KIEDY)
-│   └── TECH.md             # Architektura techniczna (JAK)
+│   ├── TECH.md             # Architektura techniczna (JAK)
+│   └── analysis/           # Analizy i propozycje zmian
 ├── src/                     # Frontend (wbudowany w binarkę)
 │   ├── index.html          # Główny layout UI
 │   ├── main.js             # Wywołania API, obsługa zdarzeń
