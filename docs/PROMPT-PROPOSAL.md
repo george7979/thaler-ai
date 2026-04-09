@@ -115,7 +115,82 @@ Odpowiedz TYLKO validnym JSON array:
 | Sekcja "pomijane" | brak | dedykowana sekcja |
 | Negatywne przykłady | minimalne | procenty, ogólniki czasowe |
 
+## Externalizacja promptu — koncepcja
+
+### Problem
+
+Nie można dać użytkownikowi pliku z placeholderami `{{ENTITY_TYPES}}` i `{{DOCUMENT_TEXT}}` — ryzyko przypadkowego usunięcia, niejasna struktura.
+
+### Rozwiązanie: plik `.md` z sekcjami parsowanymi po nagłówkach
+
+Użytkownik edytuje plik `prompt.md` obok binarki. Zawiera **tylko edytowalne sekcje** — bez typów encji i tekstu dokumentu (te wstawia kod).
+
+#### Przykładowy `prompt.md`:
+
+```markdown
+# System Message
+You are a document anonymization expert specialized in Polish legal and business documents. You find ALL sensitive entities and return them as a JSON array. Respond ONLY with valid JSON, no markdown, no commentary. Pay special attention to amounts written as words and dates in Polish format.
+
+# Zasady
+1. Znajdź KAŻDE wystąpienie — nawet jeśli ta sama encja pojawia się wielokrotnie, wypisz ją RAZ
+2. Zachowaj DOKŁADNY tekst z dokumentu (wielkość liter, spacje, interpunkcja)
+3. Nie łącz różnych encji — "Jan Kowalski z Firma Sp. z o.o." to DWA obiekty
+4. NIE anonimizuj nazw ogólnych: "Zamawiający", "Wykonawca", "Strona", "Polska"
+5. NIE anonimizuj terminów prawnych, technicznych, nazw produktów, standardów
+6. Kwota z częścią słowną w nawiasie to JEDEN obiekt — nie dziel na dwa
+
+# Najczęściej pomijane
+- Kwoty zapisane SŁOWNIE (np. "dwieście pięćdziesiąt tysięcy złotych")
+- Daty z polskim formatowaniem (np. "dnia 15 marca 2026 r.")
+- Numery umów/postępowań ukryte w treści (np. "na podstawie umowy ZP/123/2025")
+- Numery kont bankowych (26 cyfr, czasem z PL na początku)
+
+# Przykład
+Tekst: "Firma XYZ Sp. z o.o. (NIP: 987-654-32-10) z siedzibą przy ul. Leśnej 5, 30-001 Kraków zobowiązuje się zapłacić kwotę 250 000,00 zł (słownie: dwieście pięćdziesiąt tysięcy złotych 00/100) na konto nr PL 61 1090 1014 0000 0712 1981 2874 w terminie do dnia 30 czerwca 2026 r. Osoba do kontaktu: Maria Wiśniewska, tel. 512 345 678."
+
+Odpowiedź:
+[
+  {"text": "XYZ Sp. z o.o.", "type": "COMPANY"},
+  {"text": "987-654-32-10", "type": "NIP"},
+  {"text": "ul. Leśnej 5, 30-001 Kraków", "type": "ADDRESS"},
+  {"text": "250 000,00 zł (słownie: dwieście pięćdziesiąt tysięcy złotych 00/100)", "type": "AMOUNT"},
+  {"text": "PL 61 1090 1014 0000 0712 1981 2874", "type": "BANK_ACCOUNT"},
+  {"text": "30 czerwca 2026 r.", "type": "DATE"},
+  {"text": "Maria Wiśniewska", "type": "PERSON"},
+  {"text": "512 345 678", "type": "PHONE"}
+]
+```
+
+#### Jak kod Rust to skleja:
+
+```
+1. Parsuj prompt.md → wyciągnij sekcje po nagłówkach "#"
+2. Zbuduj user message:
+   - intro (hardkod): "Jesteś ekspertem od anonimizacji..."
+   - typy encji (hardkod z TYPE_DESCRIPTIONS)
+   - zasady (z pliku, sekcja "# Zasady")
+   - najczęściej pomijane (z pliku, sekcja "# Najczęściej pomijane")
+   - przykład (z pliku, sekcja "# Przykład")
+   - tekst dokumentu (runtime)
+3. System message → z pliku, sekcja "# System Message"
+4. Jeśli plik nie istnieje lub jest uszkodzony → fallback na wbudowany prompt
+```
+
+#### Co użytkownik może bezpiecznie edytować:
+
+| Sekcja | Edytowalna | Dlaczego |
+|--------|------------|----------|
+| System Message | ✅ | Zmiana tonu/języka modelu |
+| Zasady | ✅ | Dodanie/usunięcie reguł |
+| Najczęściej pomijane | ✅ | Dostosowanie do swoich dokumentów |
+| Przykład | ✅ | Lepszy few-shot dla swojego use-case |
+| Typy encji | ❌ (hardkod) | Sterują tokenizacją, UI, kategoriami |
+| Tekst dokumentu | ❌ (runtime) | Wstawiany dynamicznie per chunk |
+
+#### Fallback:
+
+Brak pliku `prompt.md` → aplikacja działa identycznie jak dziś (wbudowany prompt). Zero breaking change.
+
 ## Przyszłe usprawnienia
 
-- **Externalizacja promptu** — przeniesienie promptu z hardkodu Rust do pliku `.md` edytowalnego przez użytkownika (do dodania w PLAN.md)
 - **Testy A/B** — porównanie accuracy v1 vs v2 na zestawie testowych dokumentów
