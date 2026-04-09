@@ -596,8 +596,26 @@ impl Anonymizer {
         chunks
     }
 
+    /// Collapse runs of whitespace (2+ spaces) into a single space.
+    fn normalize_whitespace(s: &str) -> String {
+        let mut result = String::with_capacity(s.len());
+        let mut prev_space = false;
+        for c in s.chars() {
+            if c == ' ' {
+                if !prev_space {
+                    result.push(' ');
+                }
+                prev_space = true;
+            } else {
+                prev_space = false;
+                result.push(c);
+            }
+        }
+        result
+    }
+
     fn get_or_create_token(&mut self, text: &str, entity_type: &str) -> String {
-        let key = text.trim().to_string();
+        let key = Self::normalize_whitespace(text.trim());
 
         if let Some(info) = self.entities.get(&key) {
             return info.token.clone();
@@ -788,7 +806,9 @@ impl Anonymizer {
                 .match_kind(aho_corasick::MatchKind::LeftmostLongest)
                 .build(&patterns)
                 .unwrap();
-            let result = ac.replace_all(text, &replacements);
+            // Normalize whitespace in text to match normalized entity keys
+            let normalized_text = Self::normalize_whitespace(text);
+            let result = ac.replace_all(&normalized_text, &replacements);
 
             // Log what was replaced
             for (original, info) in &sorted {
