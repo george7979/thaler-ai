@@ -36,6 +36,9 @@ Detects sensitive entities (persons, companies, amounts, dates, addresses, IDs) 
 - **Default endpoint:** http://localhost:11434 (configurable in UI or via OLLAMA_URL env)
 - **Model list:** populated from Ollama `/api/tags`
 - **Robust JSON parsing:** handles truncated responses, missing `]`, markdown code blocks, bare objects
+- **Whitespace normalization:** entity keys and text matching use `normalize_whitespace()` — double spaces collapsed to single for consistent matching across NER output and DOCX/XLSX content
+- **XLSX export:** unified cell-aware approach — text entities via Aho-Corasick in shared strings, amount entities via exact match in `<v>` cells (skips shared string indices and formulas)
+- **DOCX export:** cross-node entity replacement — joins `<w:t>` text per paragraph, matches on normalized concatenation, redistributes tokens back to nodes
 
 ## Commands
 

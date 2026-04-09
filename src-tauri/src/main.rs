@@ -243,17 +243,29 @@ async fn anonymize_text(State(state): State<Arc<AppState>>, Json(payload): Json<
     anon.clear_log_sink();
     match result {
         Ok(mut r) => {
-            // If randomize_amounts is on and we have XLSX bytes, scan XML and assign randoms
-            if payload.randomize_amounts && anon.has_original_file() {
+            // XLSX numeric cells: assign random numbers or deterministic tokens
+            if anon.has_original_file() {
                 let ext = anon.get_original_ext().to_string();
                 if ext == "xlsx" || ext == "xls" {
-                    match anon.prepare_random_amounts() {
-                        Ok(count) => {
-                            state.log(&format!("Losowe kwoty: {} unikalnych wartości liczbowych", count));
-                            r.entities_found += count;
+                    if payload.randomize_amounts {
+                        match anon.prepare_random_amounts() {
+                            Ok(count) => {
+                                state.log(&format!("Losowe kwoty: {} unikalnych wartości liczbowych", count));
+                                r.entities_found += count;
+                            }
+                            Err(e) => {
+                                state.log(&format!("BŁĄD losowych kwot: {}", e));
+                            }
                         }
-                        Err(e) => {
-                            state.log(&format!("BŁĄD losowych kwot: {}", e));
+                    } else {
+                        match anon.prepare_token_amounts() {
+                            Ok(count) => {
+                                state.log(&format!("Tokeny kwot: {} unikalnych wartości liczbowych → [TH_KWOTA_*]", count));
+                                r.entities_found += count;
+                            }
+                            Err(e) => {
+                                state.log(&format!("BŁĄD tokenów kwot: {}", e));
+                            }
                         }
                     }
                 }

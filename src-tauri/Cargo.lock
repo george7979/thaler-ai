@@ -1731,7 +1731,7 @@ dependencies = [
 
 [[package]]
 name = "thaler-ai"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "aho-corasick",
  "axum",

@@ -16,23 +16,17 @@
 
 ## Co dalej
 
-### Krytyczne:
-- [x] Losowe kwoty zamiast tokenów w XLSX — zachowanie formuł i formatowania (analiza: `docs/ANALIZA-KWOTY-XLSX.md`)
-- [ ] Testy na prawdziwych dokumentach — walidacja skuteczności wykrywania
-- [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi (Windows)
-
 ### Ważne:
-- [x] Wdrożenie promptu NER v2 — rozbudowane opisy typów, few-shot, sekcja "pomijane" (propozycja: `docs/PROMPT-PROPOSAL.md`)
+- [ ] Testy na prawdziwych dokumentach — walidacja skuteczności wykrywania na różnych typach umów i arkuszy
 - [ ] Externalizacja promptu do pliku `.md` — edytowalny przez użytkownika bez rekompilacji
-- [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie
-- [ ] Drag & drop — pliki do okna aplikacji
-- [ ] Kopiowanie do schowka — zanonimizowany tekst
-- [x] Profesjonalne ikony — maski teatralne (komedia/tragedia)
+- [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie przed eksportem
+- [ ] Profile anonimizacji — wiele promptów per typ dokumentu (umowa, faktura, arkusz finansowy), wybór profilu w UI
 
 ### Opcjonalne:
+- [ ] Drag & drop — pliki do okna aplikacji
+- [ ] Kopiowanie do schowka — zanonimizowany tekst
 - [ ] Przetwarzanie wsadowe — folder z dokumentami
 - [ ] Integracja MCP z Claude Code
-- [ ] Profile anonimizacji per typ dokumentu
 - [ ] Import PDF (tekst)
 
 ---
@@ -57,6 +51,11 @@
 ### v0.4.4 (2026-04-09):
 - ✅ Prompt NER v2 — rozbudowane opisy typów (kwoty słowne, daty PL), sekcja "najczęściej pomijane", few-shot example
 - ✅ Rozszerzony system message dla polskich dokumentów prawnych
+- ✅ Tokenizacja kwot XLSX bez checkboxa "losowe" — `prepare_token_amounts()` skanuje XML i tworzy `[TH_KWOTA_*]` dla wartości numerycznych
+- ✅ Unified cell-aware XLSX export — obie ścieżki (tokeny/losowe) pomijają shared string indices i formuły
+- ✅ Fix UTF-8 panic — `char_indices().nth(30)` zamiast byte slice `[..30]` (crash na polskich znakach w logach)
+- ✅ Normalizacja whitespace w DOCX export — cross-node entity matching działa z podwójnymi spacjami
+- ✅ Normalizacja whitespace w entity keys — `get_or_create_token()` i Aho-Corasick matching spójne
 
 ### v0.4.3 (2026-04-08):
 - ✅ Losowe kwoty w XLSX — checkbox "losowe (XLSX)", zamiana WSZYSTKICH wartości liczbowych na losowe 6-cyfrowe
@@ -130,7 +129,7 @@
 | 2026-04-05 | v0.4.1 | Motyw ciemny/jasny, fix heartbeat, anonimizacja hiperlinków XLSX, fix bezpieczeństwa |
 | 2026-04-05 | v0.4.2 | Regex safety net, dynamiczne typy encji, CI/CD, ikona, Windows .msi |
 | 2026-04-08 | v0.4.3 | Losowe kwoty XLSX, fix shared formulas, fullCalcOnLoad, self-closing cells |
-| 2026-04-09 | v0.4.4 | Prompt NER v2 — kwoty słowne, daty PL, few-shot, sekcja "pomijane" |
+| 2026-04-09 | v0.4.4 | Prompt NER v2, tokenizacja kwot XLSX, unified cell-aware export, fix UTF-8 panic, normalizacja whitespace DOCX |
 
 ---
 

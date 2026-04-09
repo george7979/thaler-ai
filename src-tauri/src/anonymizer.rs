@@ -790,7 +790,12 @@ impl Anonymizer {
 
         for entity in &all_entities {
             let token = self.get_or_create_token(&entity.text, &entity.entity_type);
-            let display = if entity.text.len() > 30 { &entity.text[..30] } else { &entity.text };
+            let display: &str = if entity.text.chars().count() > 30 {
+                let end = entity.text.char_indices().nth(30).map(|(i, _)| i).unwrap_or(entity.text.len());
+                &entity.text[..end]
+            } else {
+                &entity.text
+            };
             self.log(&format!("  {} {} → {}", entity.entity_type, display, token));
         }
 
@@ -941,29 +946,27 @@ impl Anonymizer {
             return Err(format!("Oryginał to .{}, nie .xlsx", self.original_file_ext));
         }
 
-        // Build Aho-Corasick replacer (single-pass, no token corruption)
-        let mut sorted: Vec<_> = self.entities.iter().collect();
-        sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
-        let patterns: Vec<&str> = sorted.iter().map(|(k, _)| k.as_str()).collect();
-        let replacements: Vec<&str> = sorted.iter().map(|(_, v)| v.token.as_str()).collect();
-        let ac = AhoCorasick::builder()
-            .match_kind(aho_corasick::MatchKind::LeftmostLongest)
-            .build(&patterns)
-            .unwrap();
-
-        if !randomize_amounts {
-            return Self::replace_in_xlsx_shared_strings(original_bytes, |text| {
-                ac.replace_all(text, &replacements)
-            });
-        }
-
-        // --- Randomize amounts mode ---
-        // Use pre-built random map from prepare_random_amounts() (called at "Anonimizuj" time).
-        // Build a lookup: original_value → random_token for AMOUNT entities.
+        // Build a lookup: original_value → token for AMOUNT entities (used in cell-aware replacement)
         let amount_lookup: HashMap<&str, &str> = self.entities.iter()
             .filter(|(_, info)| info.entity_type == "AMOUNT")
             .map(|(orig, info)| (orig.as_str(), info.token.as_str()))
             .collect();
+
+        // Build text-only AC (excludes AMOUNT entities — those are handled cell-by-cell)
+        let mut text_sorted: Vec<_> = self.entities.iter()
+            .filter(|(_, info)| info.entity_type != "AMOUNT")
+            .collect();
+        text_sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        let text_patterns: Vec<&str> = text_sorted.iter().map(|(k, _)| k.as_str()).collect();
+        let text_replacements: Vec<&str> = text_sorted.iter().map(|(_, v)| v.token.as_str()).collect();
+        let text_ac = if !text_patterns.is_empty() {
+            Some(AhoCorasick::builder()
+                .match_kind(aho_corasick::MatchKind::LeftmostLongest)
+                .build(&text_patterns)
+                .unwrap())
+        } else {
+            None
+        };
 
         let cursor = std::io::Cursor::new(original_bytes);
         let mut archive = zip::ZipArchive::new(cursor)
@@ -999,14 +1002,18 @@ impl Anonymizer {
                     }).to_string();
                 modified_files.insert(name, modified.into_bytes());
             } else if name == "xl/sharedStrings.xml" {
-                // Shared strings — apply token replacement for non-amount entities
+                // Shared strings — apply text-only token replacement (no AMOUNT patterns here)
                 let xml = String::from_utf8_lossy(&buf).to_string();
-                let modified = re_t.replace_all(&xml, |caps: &regex::Captures| {
-                    let open_tag = &caps[1];
-                    let content = ac.replace_all(&caps[2], &replacements);
-                    let close_tag = &caps[3];
-                    format!("{}{}{}", open_tag, content, close_tag)
-                }).to_string();
+                let modified = if let Some(ref tac) = text_ac {
+                    re_t.replace_all(&xml, |caps: &regex::Captures| {
+                        let open_tag = &caps[1];
+                        let content = tac.replace_all(&caps[2], &text_replacements);
+                        let close_tag = &caps[3];
+                        format!("{}{}{}", open_tag, content, close_tag)
+                    }).to_string()
+                } else {
+                    xml
+                };
                 modified_files.insert(name, modified.into_bytes());
             } else if name.starts_with("xl/worksheets/") && name.ends_with(".xml") {
                 let xml = String::from_utf8_lossy(&buf).to_string();
@@ -1028,33 +1035,37 @@ impl Anonymizer {
                         return format!("{}{}{}", open_c, inner, close_c);
                     }
 
-                    // Non-formula, non-shared-string cell — apply random from pre-built map
+                    // Non-formula, non-shared-string cell — replace <v> values from amount lookup
                     let new_inner = re_v.replace_all(inner, |vcaps: &regex::Captures| {
                         let v_open = &vcaps[1];
                         let value = &vcaps[2];
                         let v_close = &vcaps[3];
 
-                        // Exact match against pre-built amount lookup
-                        if let Some(rand_token) = amount_lookup.get(value) {
-                            return format!("{}{}{}", v_open, rand_token, v_close);
+                        // Exact match against amount lookup (token or random, depending on mode)
+                        if let Some(replacement) = amount_lookup.get(value) {
+                            return format!("{}{}{}", v_open, replacement, v_close);
                         }
 
                         // Not in amount map — leave unchanged
                         format!("{}{}{}", v_open, value, v_close)
                     }).to_string();
 
-                    // Handle inline <t> tags — token replacement for text
-                    let new_inner = re_t.replace_all(&new_inner, |tcaps: &regex::Captures| {
-                        let t_open = &tcaps[1];
-                        let content = ac.replace_all(&tcaps[2], &replacements);
-                        let t_close = &tcaps[3];
-                        format!("{}{}{}", t_open, content, t_close)
-                    }).to_string();
+                    // Handle inline <t> tags — token replacement for text entities
+                    let new_inner = if let Some(ref tac) = text_ac {
+                        re_t.replace_all(&new_inner, |tcaps: &regex::Captures| {
+                            let t_open = &tcaps[1];
+                            let content = tac.replace_all(&tcaps[2], &text_replacements);
+                            let t_close = &tcaps[3];
+                            format!("{}{}{}", t_open, content, t_close)
+                        }).to_string()
+                    } else {
+                        new_inner
+                    };
 
                     format!("{}{}{}", open_c, new_inner, close_c)
                 }).to_string();
 
-                // Fix cell types for any token replacements in non-randomized cells
+                // Fix cell types: numeric → inlineStr when token replaces number
                 let step2 = Self::fix_xlsx_cell_types(&result, &re_v);
                 let final_xml = Self::restore_xlsx_cell_types(&step2);
 
@@ -1062,11 +1073,15 @@ impl Anonymizer {
             } else if name.contains("_rels/") && name.ends_with(".rels") {
                 let xml = String::from_utf8_lossy(&buf).to_string();
                 let re_target = regex::Regex::new(r#"Target="([^"]*)""#).unwrap();
-                let modified = re_target.replace_all(&xml, |caps: &regex::Captures| {
-                    let target = &caps[1];
-                    let replaced = ac.replace_all(target, &replacements);
-                    format!(r#"Target="{}""#, replaced)
-                }).to_string();
+                let modified = if let Some(ref tac) = text_ac {
+                    re_target.replace_all(&xml, |caps: &regex::Captures| {
+                        let target = &caps[1];
+                        let replaced = tac.replace_all(target, &text_replacements);
+                        format!(r#"Target="{}""#, replaced)
+                    }).to_string()
+                } else {
+                    String::from_utf8_lossy(&buf).to_string()
+                };
                 modified_files.insert(name, modified.into_bytes());
             } else {
                 modified_files.insert(name, buf);
@@ -1677,6 +1692,100 @@ impl Anonymizer {
         Ok(count)
     }
 
+    /// Scan XLSX XML and assign deterministic tokens ([TH_KWOTA_001], etc.) to ALL numeric cell values
+    /// (non-formula, non-shared-string). Used when randomize_amounts is OFF but user still wants
+    /// numeric values anonymized with tokens instead of random numbers.
+    /// Returns the number of unique values tokenized.
+    pub fn prepare_token_amounts(&mut self) -> Result<usize, String> {
+        let original_bytes = self.original_file_bytes.as_ref()
+            .ok_or("Brak oryginalnych bajtów pliku")?;
+
+        let mut value_set: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        let cursor = std::io::Cursor::new(original_bytes);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .map_err(|e| format!("Nie mogę otworzyć XLSX: {}", e))?;
+
+        let re_cell_block = regex::Regex::new(r"(?s)(<c\s[^>]*>)(.*?)(</c>)").unwrap();
+        let re_cell_selfclose = regex::Regex::new(r"<c(\s[^>]*?)\s*/>").unwrap();
+        let re_v = regex::Regex::new(r"<v>([^<]+)</v>").unwrap();
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i)
+                .map_err(|e| format!("Błąd ZIP entry {}: {}", i, e))?;
+            let name = entry.name().to_string();
+
+            if !(name.starts_with("xl/worksheets/") && name.ends_with(".xml")) {
+                continue;
+            }
+
+            let buf = read_zip_entry_safe(&mut entry)?;
+            let xml = String::from_utf8_lossy(&buf).to_string();
+
+            // Expand self-closing <c .../> to <c ...></c>
+            let xml = re_cell_selfclose.replace_all(&xml, |caps: &regex::Captures| {
+                format!("<c{}></c>", &caps[1])
+            }).to_string();
+
+            for caps in re_cell_block.captures_iter(&xml) {
+                let open_c = &caps[1];
+                let inner = &caps[2];
+
+                // Skip formulas and shared strings
+                if inner.contains("<f") || open_c.contains("t=\"s\"") {
+                    continue;
+                }
+
+                // Extract <v> value
+                if let Some(vcaps) = re_v.captures(inner) {
+                    let value = &vcaps[1];
+
+                    // Only numeric values
+                    if value.parse::<f64>().is_err() {
+                        continue;
+                    }
+
+                    if !seen.contains(value) {
+                        seen.insert(value.to_string());
+                        value_set.push(value.to_string());
+                    }
+                }
+            }
+        }
+
+        // Add to entity map using deterministic tokens
+        let count = value_set.len();
+        let valid_originals: std::collections::HashSet<String> = value_set.iter().cloned().collect();
+
+        for original_value in value_set {
+            // If NER already found this value, keep its existing token
+            if self.entities.contains_key(&original_value) {
+                continue;
+            }
+
+            // Create a new AMOUNT token via get_or_create_token
+            self.get_or_create_token(&original_value, "AMOUNT");
+        }
+
+        // Remove phantom AMOUNT entities — NER found these as formula results
+        // but they don't exist in any non-formula cell
+        let phantoms: Vec<String> = self.entities.iter()
+            .filter(|(orig, info)| {
+                (info.entity_type == "AMOUNT" || info.entity_type == "KWOTA")
+                    && !valid_originals.contains(orig.as_str())
+            })
+            .map(|(orig, _)| orig.clone())
+            .collect();
+        for orig in &phantoms {
+            if let Some(info) = self.entities.remove(orig) {
+                self.reverse.remove(&info.token);
+            }
+        }
+
+        Ok(count)
+    }
+
     /// Export anonymized DOCX — replaces entities in word/document.xml inside the original ZIP
     pub fn export_anon_docx(&self) -> Result<Vec<u8>, String> {
         let original_bytes = self.original_file_bytes.as_ref()
@@ -1761,10 +1870,10 @@ impl Anonymizer {
             }
 
             let wt_texts: Vec<String> = wt_caps.iter()
-                .map(|c| c[2].to_string())
+                .map(|c| Self::normalize_whitespace(&c[2]))
                 .collect();
 
-            // Concatenate all text
+            // Concatenate all text (already whitespace-normalized per node)
             let full_text = wt_texts.join("");
 
             // Apply entity replacements on concatenated text (single-pass Aho-Corasick)

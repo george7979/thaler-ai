@@ -135,6 +135,10 @@ Binary: `src-tauri/target/release/thaler-ai`
 
 Dokumentacja techniczna projektu (PRD, PLAN, TECH) prowadzona jest zgodnie z metodyka [Context Keeper Method (CKM)](https://github.com/george7979/context-keeper-method) — znajduje sie w katalogu `docs/`.
 
+- **Changelog i historia wersji:** [`docs/PLAN.md`](docs/PLAN.md) — sekcja "Ukonczone" zawiera pelna liste zmian per wersja
+- **Planowane funkcje i priorytety:** [`docs/PLAN.md`](docs/PLAN.md) — sekcja "Co dalej"
+- **Szczegoly techniczne:** [`docs/TECH.md`](docs/TECH.md) — architektura, API, algorytmy
+
 ## Licencja
 
 MIT

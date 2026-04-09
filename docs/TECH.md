@@ -85,7 +85,7 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 - **Deterministyczne tokeny:** [TH_FIRMA_001], [TH_OSOBA_002] itp. (prefiks TH_ zapobiega kolizjom) — ✅ Gotowe
 - **Eksport DOCX→DOCX:** anonimizacja/deanonimizacja z zachowaniem formatowania Word — ✅ Gotowe
 - **Eksport XLSX→XLSX:** anonimizacja/deanonimizacja przez sharedStrings + komórki numeryczne — ✅ Gotowe
-- **Losowe kwoty XLSX:** checkbox "losowe (XLSX)" — zamiana WSZYSTKICH wartości liczbowych na losowe 6-cyfrowe, niezależnie od NER. Formuły i shared strings pomijane. Obsługa self-closing `<c/>`, shared formulas `<f t="shared">`, usunięcie `calcChain.xml`, wymuszenie `fullCalcOnLoad` — ✅ Gotowe
+- **Kwoty XLSX — dwa tryby:** (1) tokeny `[TH_KWOTA_*]` gdy checkbox "losowe" wyłączony, (2) losowe 6-cyfrowe gdy włączony. Oba niezależne od NER — skanują XML bezpośrednio. Unified cell-aware export pomija shared string indices i formuły — ✅ Gotowe
 - **Statystyki deanonimizacji:** licznik zamienionych tokenów + raport brakujących + rozbicie kwoty/tekst — ✅ Gotowe
 - **De-anonimizacja:** odwrócenie token→oryginał (tekst + DOCX) — ✅ Gotowe
 - **Tabela mapowań w UI:** Token ↔ typ ↔ oryginał — ✅ Gotowe
@@ -106,8 +106,9 @@ Plik (XLSX/DOCX/MD/TXT/CSV) → Browser (<input type="file">)
 
 - **Podgląd XLSX w UI** traci formatowanie (scalone komórki, kolory) — calamine zwraca tylko dane tekstowe. Eksport XLSX→XLSX zachowuje pełne formatowanie oryginału
 - Brak podpisu cyfrowego — Windows SmartScreen wyswietla ostrzezenie przy pierwszym uruchomieniu
-- **Mniejsze modele (np. gemma4:latest ~9B) mają trudności z rozpoznawaniem encji w arkuszach XLSX** — dane tabelaryczne bez kontekstu zdaniowego są słabo interpretowane. Zalecane: Bielik 11B+ (polski) lub Gemma4 26B (wielojęzyczny). Randomizacja kwot ("losowe XLSX") działa niezależnie od modelu.
+- **Mniejsze modele (np. gemma4:latest ~9B) mają trudności z rozpoznawaniem encji w arkuszach XLSX** — dane tabelaryczne bez kontekstu zdaniowego są słabo interpretowane. Zalecane: Bielik 11B+ (polski) lub Gemma4 26B (wielojęzyczny). Tokenizacja/randomizacja kwot działa niezależnie od modelu.
 - **Case sensitivity przy roundtrip** — ta sama nazwa w różnych wariantach (np. "JERZY" i "Jerzy") jest mapowana na jeden token. Przy deanonimizacji jeden wariant wygrywa — drobne różnice w casingu mogą wystąpić
+- **DOCX cross-paragraph entities** — encja rozciągająca się na dwa osobne paragrafy (`<w:p>`) nie zostanie zamieniona (algorytm działa per paragraf). W praktyce rzadkie — większość encji mieści się w jednym akapicie
 
 ---
 
@@ -330,41 +331,58 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
    - Nieznane typy: model wymyśla typ → token go odzwierciedla, np. `NR_ARIMR` → `[TH_NR_ARIMR_001]`
 8. **Zamiana** w tekście — single-pass przez Aho-Corasick (O(n), najdłuższe dopasowania priorytetowe)
 
-### Ścieżka randomizacji kwot XLSX:
+### Ścieżka kwot XLSX (tokeny lub losowe liczby):
 
-Gdy checkbox "losowe (XLSX)" jest zaznaczony, po kroku 8 uruchamia się dodatkowy pipeline:
+Po kroku 8, dla plików XLSX uruchamia się dodatkowy pipeline — **zawsze**, niezależnie od checkboxa:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  9. PREPARE_RANDOM_AMOUNTS        (przy "Anonimizuj")   │
-│     ZIP → xl/worksheets/sheet*.xml → regex cell blocks  │
-│     Expand self-closing <c.../> → <c...></c>            │
-│     Dla każdej komórki: skip formuły (<f) + shared str  │
-│     Każda numeryczna <v> → losowa 6-cyfrowa (100000-    │
-│     999999), deterministyczna per wartość                │
-│     Wynik: mapa original→random dodana do self.entities │
+│  9a. PREPARE_TOKEN_AMOUNTS    (checkbox OFF, "Anonimizuj")│
+│     ZIP → xl/worksheets/sheet*.xml → regex cell blocks   │
+│     Expand self-closing <c.../> → <c...></c>             │
+│     Dla każdej komórki: skip formuły (<f) + shared str   │
+│     Każda numeryczna <v> → token [TH_KWOTA_NNN]          │
+│     via get_or_create_token() (deterministyczne)         │
+│     Wynik: encje AMOUNT dodane do self.entities          │
+└──────────────────────┬──────────────────────────────────┘
+                       │ LUB
+┌─────────────────────────────────────────────────────────┐
+│  9b. PREPARE_RANDOM_AMOUNTS   (checkbox ON, "Anonimizuj")│
+│     Identyczny skan XML                                  │
+│     Każda numeryczna <v> → losowa 6-cyfrowa (100000-     │
+│     999999), deterministyczna per wartość                 │
+│     Wynik: mapa original→random dodana do self.entities  │
 └──────────────────────┬──────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  10. EXPORT_ANON_XLSX             (przy "Pobierz")      │
-│     Użycie gotowej mapy z kroku 9                       │
-│     sharedStrings.xml → AC replacement (tokeny tekst.)  │
-│     worksheets → exact match <v> z mapy (losowe kwoty)  │
-│     workbook.xml → fullCalcOnLoad="1"                   │
-│     Pominięcie calcChain.xml                            │
+│  10. EXPORT_ANON_XLSX (unified)    (przy "Pobierz")      │
+│     Cell-aware approach dla OBU ścieżek:                 │
+│     • Text-only AC (PERSON, COMPANY, NIP...) w shared    │
+│       strings + inline <t> — NIE zawiera AMOUNT patterns │
+│     • Amount lookup (exact match) w <v> komórek          │
+│       numerycznych — skip t="s" (shared string indices)  │
+│       i <f (formuły)                                     │
+│     • workbook.xml → fullCalcOnLoad="1"                  │
+│     • Pominięcie calcChain.xml                           │
+│     • fix_xlsx_cell_types: numeric→inlineStr gdy token    │
 └─────────────────────────────────────────────────────────┘
 ```
 
 **Kluczowe decyzje:**
-- Randomizacja **niezależna od NER** — skanuje XML bezpośrednio, działa nawet z 0 encji z modelu
-- **Exact match** HashMap zamiast Aho-Corasick w `<v>` tagach — zapobiega substring collision (np. "0" w "30000")
-- **Self-closing `<c.../>`** expandowane przed parsowaniem — zapobiega przesunięciu granic komórek w regex
+- Oba tryby (tokeny/losowe) skanują XML **niezależnie od NER** — działają nawet z 0 encji z modelu
+- **Unified cell-aware export** — obie ścieżki korzystają z tego samego kodu, który przetwarza komórki pojedynczo (`<c>` bloki), pomija `t="s"` (shared string indices) i `<f` (formuły). Eliminuje bug z podmianą indeksów shared strings (np. `<v>0</v>` = "Kategoria" → nie jest traktowane jako kwota)
+- **Separacja AC: text vs amount** — AC replacer działa TYLKO na tekst (PERSON, COMPANY itd.) w shared strings i inline `<t>`. AMOUNT entities są zamieniane przez exact match HashMap w `<v>` komórek numerycznych
+- **Exact match** HashMap zamiast Aho-Corasick w `<v>` tagach — zapobiega substring collision
+- **Self-closing `<c.../>`** expandowane przed parsowaniem
 - **Shared formulas** (`<f t="shared"...>`) wykrywane przez `contains("<f")` nie `contains("<f>")`
-- **`fullCalcOnLoad="1"`** dodawane do anon i restored — wymusza przeliczenie cached `<v>` w formułach
+- **`fullCalcOnLoad="1"`** dodawane do anon i restored
+- **Phantom cleanup** — encje AMOUNT/KWOTA wykryte przez NER ale nieistniejące w komórkach non-formula są usuwane z mapy (w obu trybach)
 
 ### Uwaga dot. DOCX:
 - Bielik 11B jest wrażliwy na białe znaki — `\n\n` między akapitami obniża skuteczność z 7 do 1 encji
 - Parser DOCX używa pojedynczego `\n` między akapitami (zachowuje `<w:br/>` i `<w:tab/>`)
+- **Normalizacja whitespace w eksporcie DOCX:** `replace_entities_in_xml()` normalizuje tekst z `<w:t>` tagów (podwójne spacje → pojedyncze) przed matching. Bez tego encje z NER (klucze z single-space) nie matchują tekstu DOCX (który może mieć podwójne spacje)
+- **Cross-node entity replacement:** Word często dzieli tekst na wiele `<w:r>` runów (spell-check, formatowanie). Algorytm: (1) join tekstu z `<w:t>` w paragrafie, (2) AC replacement na całości, (3) redistribucja tokenów do oryginalnych `<w:t>` node'ów. Obsługa single-node i cross-node encji w dwóch passach
 
 ---
 
