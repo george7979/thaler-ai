@@ -10,7 +10,7 @@
 **Autor:** Jerzy Maczewski
 **Start projektu:** 2026-03-26
 **Aktualna wersja:** v0.4.4
-**Faza:** Early access — publiczny dostęp, aktywny rozwój
+**Faza:** Beta — publiczny dostęp, aktywny rozwój
 
 ---
 
