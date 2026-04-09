@@ -9,7 +9,7 @@
 
 **Autor:** Jerzy Maczewski
 **Start projektu:** 2026-03-26
-**Aktualna wersja:** v0.4.3
+**Aktualna wersja:** v0.4.4
 **Faza:** Early access — publiczny dostęp, aktywny rozwój
 
 ---
@@ -53,6 +53,10 @@
 ---
 
 ## Ukończone
+
+### v0.4.4 (2026-04-09):
+- ✅ Prompt NER v2 — rozbudowane opisy typów (kwoty słowne, daty PL), sekcja "najczęściej pomijane", few-shot example
+- ✅ Rozszerzony system message dla polskich dokumentów prawnych
 
 ### v0.4.3 (2026-04-08):
 - ✅ Losowe kwoty w XLSX — checkbox "losowe (XLSX)", zamiana WSZYSTKICH wartości liczbowych na losowe 6-cyfrowe
@@ -126,6 +130,7 @@
 | 2026-04-05 | v0.4.1 | Motyw ciemny/jasny, fix heartbeat, anonimizacja hiperlinków XLSX, fix bezpieczeństwa |
 | 2026-04-05 | v0.4.2 | Regex safety net, dynamiczne typy encji, CI/CD, ikona, Windows .msi |
 | 2026-04-08 | v0.4.3 | Losowe kwoty XLSX, fix shared formulas, fullCalcOnLoad, self-closing cells |
+| 2026-04-09 | v0.4.4 | Prompt NER v2 — kwoty słowne, daty PL, few-shot, sekcja "pomijane" |
 
 ---
 
