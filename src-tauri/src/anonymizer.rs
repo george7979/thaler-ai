@@ -34,18 +34,18 @@ const CATEGORY_TYPES: &[(&str, &[&str])] = &[
 
 // NER type → description (for prompt building)
 const TYPE_DESCRIPTIONS: &[(&str, &str)] = &[
-    ("PERSON",      "PERSON — imiona i nazwiska osób"),
-    ("COMPANY",     "COMPANY — nazwy firm, spółek, instytucji"),
-    ("AMOUNT",      "AMOUNT — kwoty pieniężne (np. \"8 934 000,00 PLN\", \"1.5 mln zł\")"),
-    ("DATE",        "DATE — konkretne daty (np. \"15 marca 2026\", \"2026-03-15\")"),
-    ("ADDRESS",     "ADDRESS — adresy (ulica, miasto, kod pocztowy)"),
-    ("PHONE",       "PHONE — numery telefonów"),
+    ("PERSON",      "PERSON — imiona i nazwiska osób (np. \"Jan Kowalski\", \"Anna Nowak-Wiśniewska\")"),
+    ("COMPANY",     "COMPANY — nazwy firm, spółek, instytucji (np. \"ABC Sp. z o.o.\", \"Urząd Miasta Krakowa\")"),
+    ("AMOUNT",      "AMOUNT — kwoty pieniężne w KAŻDEJ formie:\n    • liczbowe: \"8 934 000,00 PLN\", \"1.5 mln zł\", \"123,45 EUR\", \"50 000,00 zł\"\n    • słowne: \"pięćdziesiąt tysięcy złotych\", \"dwa miliony trzysta tysięcy 00/100\"\n    • mieszane: \"50 000,00 zł (słownie: pięćdziesiąt tysięcy złotych 00/100)\" — traktuj jako JEDEN obiekt\n    • procenty od kwot: \"2% wartości umowy\" NIE jest kwotą — ignoruj"),
+    ("DATE",        "DATE — konkretne daty w KAŻDYM formacie:\n    • \"15 marca 2026 r.\", \"15.03.2026\", \"2026-03-15\"\n    • \"dnia 15 marca 2026 roku\", \"z dnia 10.01.2026 r.\"\n    • \"do dnia 31.12.2026\", \"w terminie do 30 czerwca 2026 r.\"\n    • \"od 01.01.2026 do 31.12.2026\" — to DWA osobne obiekty DATE\n    • NIE oznaczaj ogólników: \"w ciągu 14 dni\", \"30 dni roboczych\" to NIE są daty"),
+    ("ADDRESS",     "ADDRESS — pełne adresy (np. \"ul. Kwiatowa 15, 00-001 Warszawa\")"),
+    ("PHONE",       "PHONE — numery telefonów (np. \"+48 123 456 789\", \"123-456-789\")"),
     ("EMAIL",       "EMAIL — adresy email"),
-    ("CONTRACT_ID", "CONTRACT_ID — numery umów, postępowań, sygnatur (np. \"385/LZA/AZI/2025\")"),
-    ("NIP",         "NIP — numery NIP"),
+    ("CONTRACT_ID", "CONTRACT_ID — numery umów, postępowań, sygnatur (np. \"ZP/385/LZA/2025\", \"DZP.26.1.2025\")"),
+    ("NIP",         "NIP — numery NIP (np. \"NIP: 123-456-78-90\", \"NIP 1234567890\")"),
     ("REGON",       "REGON — numery REGON"),
     ("KRS",         "KRS — numery KRS"),
-    ("BANK_ACCOUNT","BANK_ACCOUNT — numery kont bankowych"),
+    ("BANK_ACCOUNT","BANK_ACCOUNT — numery kont bankowych (np. \"PL 12 3456 7890 1234 5678 9012 3456\")"),
     ("PESEL",       "PESEL — numery PESEL (11 cyfr)"),
     ("OTHER_ID",    "OTHER_ID — inne identyfikatory (nr dowodu osobistego np. \"ABC123456\", nr ARiMR, numery ewidencyjne)"),
 ];
@@ -73,22 +73,44 @@ fn build_ner_prompt(text: &str, enabled_categories: &Option<Vec<String>>) -> (St
         .collect();
 
     let prompt = format!(
-r#"Jesteś ekspertem od anonimizacji dokumentów. Twoim zadaniem jest znalezienie WSZYSTKICH danych wrażliwych w tekście.
+r#"Jesteś ekspertem od anonimizacji dokumentów urzędowych i umów. Twoim zadaniem jest znalezienie WSZYSTKICH danych wrażliwych w tekście.
 
 Zwróć TYLKO JSON array z obiektami, bez żadnego dodatkowego tekstu, komentarzy ani markdown.
 Każdy obiekt musi mieć pola: "text" (dokładny tekst z dokumentu), "type" (typ encji).
 
-Typy encji:
+## Typy encji:
 {}
 
-ZASADY:
+## Zasady:
 1. Znajdź KAŻDE wystąpienie — nawet jeśli ta sama encja pojawia się wielokrotnie, wypisz ją RAZ
 2. Zachowaj DOKŁADNY tekst z dokumentu (wielkość liter, spacje, interpunkcja)
-3. Nie łącz encji — "Jan Kowalski z Firma Sp. z o.o." to DWA obiekty
-4. NIE anonimizuj nazw ogólnych (np. "Zamawiający", "Wykonawca", "Polska")
-5. NIE anonimizuj terminów technicznych, nazw produktów software, standardów
+3. Nie łącz różnych encji — "Jan Kowalski z Firma Sp. z o.o." to DWA obiekty
+4. NIE anonimizuj nazw ogólnych: "Zamawiający", "Wykonawca", "Strona", "Polska"
+5. NIE anonimizuj terminów prawnych, technicznych, nazw produktów, standardów
+6. Kwota z częścią słowną w nawiasie to JEDEN obiekt — nie dziel na dwa
 
-Tekst do analizy:
+## Najczęściej pomijane — zwróć szczególną uwagę:
+- Kwoty zapisane SŁOWNIE (np. "dwieście pięćdziesiąt tysięcy złotych")
+- Daty z polskim formatowaniem (np. "dnia 15 marca 2026 r.")
+- Numery umów/postępowań ukryte w treści (np. "na podstawie umowy ZP/123/2025")
+- Numery kont bankowych (26 cyfr, czasem z PL na początku)
+
+## Przykład:
+Tekst: "Firma XYZ Sp. z o.o. (NIP: 987-654-32-10) z siedzibą przy ul. Leśnej 5, 30-001 Kraków zobowiązuje się zapłacić kwotę 250 000,00 zł (słownie: dwieście pięćdziesiąt tysięcy złotych 00/100) na konto nr PL 61 1090 1014 0000 0712 1981 2874 w terminie do dnia 30 czerwca 2026 r. Osoba do kontaktu: Maria Wiśniewska, tel. 512 345 678."
+
+Odpowiedź:
+[
+  {{"text": "XYZ Sp. z o.o.", "type": "COMPANY"}},
+  {{"text": "987-654-32-10", "type": "NIP"}},
+  {{"text": "ul. Leśnej 5, 30-001 Kraków", "type": "ADDRESS"}},
+  {{"text": "250 000,00 zł (słownie: dwieście pięćdziesiąt tysięcy złotych 00/100)", "type": "AMOUNT"}},
+  {{"text": "PL 61 1090 1014 0000 0712 1981 2874", "type": "BANK_ACCOUNT"}},
+  {{"text": "30 czerwca 2026 r.", "type": "DATE"}},
+  {{"text": "Maria Wiśniewska", "type": "PERSON"}},
+  {{"text": "512 345 678", "type": "PHONE"}}
+]
+
+## Tekst do analizy:
 ---
 {}
 ---
@@ -415,7 +437,7 @@ impl Anonymizer {
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a document anonymization expert. You find sensitive entities and return them as a JSON array. Respond ONLY with valid JSON, no markdown, no commentary."
+                    "content": "You are a document anonymization expert specialized in Polish legal and business documents. You find ALL sensitive entities and return them as a JSON array. Respond ONLY with valid JSON, no markdown, no commentary. Pay special attention to amounts written as words and dates in Polish format."
                 },
                 {
                     "role": "user",
