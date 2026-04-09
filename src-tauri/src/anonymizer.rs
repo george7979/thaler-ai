@@ -38,7 +38,7 @@ const TYPE_DESCRIPTIONS: &[(&str, &str)] = &[
     ("COMPANY",     "COMPANY — nazwy firm, spółek, instytucji (np. \"ABC Sp. z o.o.\", \"Urząd Miasta Krakowa\")"),
     ("AMOUNT",      "AMOUNT — kwoty pieniężne w KAŻDEJ formie:\n    • liczbowe: \"8 934 000,00 PLN\", \"1.5 mln zł\", \"123,45 EUR\", \"50 000,00 zł\"\n    • słowne: \"pięćdziesiąt tysięcy złotych\", \"dwa miliony trzysta tysięcy 00/100\"\n    • mieszane: \"50 000,00 zł (słownie: pięćdziesiąt tysięcy złotych 00/100)\" — traktuj jako JEDEN obiekt\n    • procenty od kwot: \"2% wartości umowy\" NIE jest kwotą — ignoruj"),
     ("DATE",        "DATE — konkretne daty w KAŻDYM formacie:\n    • \"15 marca 2026 r.\", \"15.03.2026\", \"2026-03-15\"\n    • \"dnia 15 marca 2026 roku\", \"z dnia 10.01.2026 r.\"\n    • \"do dnia 31.12.2026\", \"w terminie do 30 czerwca 2026 r.\"\n    • \"od 01.01.2026 do 31.12.2026\" — to DWA osobne obiekty DATE\n    • NIE oznaczaj ogólników: \"w ciągu 14 dni\", \"30 dni roboczych\" to NIE są daty"),
-    ("ADDRESS",     "ADDRESS — pełne adresy (np. \"ul. Kwiatowa 15, 00-001 Warszawa\")"),
+    ("ADDRESS",     "ADDRESS — adresy, także częściowe (np. \"ul. Kwiatowa 15, 00-001 Warszawa\", \"Pęzy 1\", \"Kraków\")"),
     ("PHONE",       "PHONE — numery telefonów (np. \"+48 123 456 789\", \"123-456-789\")"),
     ("EMAIL",       "EMAIL — adresy email"),
     ("CONTRACT_ID", "CONTRACT_ID — numery umów, postępowań, sygnatur (np. \"ZP/385/LZA/2025\", \"DZP.26.1.2025\")"),
