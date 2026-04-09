@@ -22,6 +22,8 @@
 - [x] GitHub Actions CI/CD — auto-build .deb (Linux) + .msi (Windows)
 
 ### Ważne:
+- [ ] Wdrożenie promptu NER v2 — rozbudowane opisy typów, few-shot, sekcja "pomijane" (propozycja: `docs/PROMPT-PROPOSAL.md`)
+- [ ] Externalizacja promptu do pliku `.md` — edytowalny przez użytkownika bez rekompilacji
 - [ ] Edycja mapowań w UI — wykluczenie/dodanie encji ręcznie
 - [ ] Drag & drop — pliki do okna aplikacji
 - [ ] Kopiowanie do schowka — zanonimizowany tekst
