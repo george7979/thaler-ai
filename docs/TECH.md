@@ -310,6 +310,38 @@ Response parsed from `message.content` → JSON array of `{"text": "...", "type"
 └─────────────────────────────────────────────────────────┘
 ```
 
+### Budowanie promptu NER (`build_ner_prompt`)
+
+Prompt jest budowany dynamicznie w `anonymizer.rs::build_ner_prompt()`. Składa się z dwóch wiadomości:
+
+**System message** (stały, w `call_ollama()`):
+```
+You are a document anonymization expert specialized in Polish legal and
+business documents. You find ALL sensitive entities and return them as a
+JSON array. Respond ONLY with valid JSON, no markdown, no commentary.
+Pay special attention to amounts written as words and dates in Polish format.
+```
+
+**User message** (generowany dynamicznie, 6 sekcji):
+
+| Sekcja | Zawartość | Źródło |
+|--------|-----------|--------|
+| Nagłówek | Rola, format odpowiedzi (JSON array z `text` + `type`) | stały tekst |
+| Typy encji | Lista 14 typów z opisami i przykładami | `TYPE_DESCRIPTIONS` (hardcoded) |
+| Zasady | 6 reguł (deduplikacja, dokładny tekst, nie łącz, nie anonimizuj ogólników, kwoty z częścią słowną) | stały tekst |
+| Najczęściej pomijane | 4 kategorie na które model ma zwrócić uwagę (kwoty słowne, daty PL, nr umów, konta bankowe) | stały tekst |
+| Przykład few-shot | Tekst umowy → oczekiwany JSON z 8 encjami (COMPANY, NIP, ADDRESS, AMOUNT, BANK_ACCOUNT, DATE, PERSON, PHONE) | stały tekst |
+| Tekst do analizy | Dokument użytkownika (chunk) oddzielony `---` | dynamiczny |
+
+**Kluczowe decyzje:**
+- **Prompt zawsze zawiera WSZYSTKIE 14 typów** — nawet gdy użytkownik odznaczył kategorię w UI. Lepsza klasyfikacja: model wie o wszystkich typach, a filtrowanie odbywa się post-hoc (krok 6 pipeline)
+- **`TYPE_DESCRIPTIONS`** to tablica `(&str, &str)` — typ + opis z przykładami. Opisy są rozbudowane (v2): kwoty mają 4 warianty (liczbowe, słowne, mieszane, procenty), daty mają 5 formatów z informacją czego NIE oznaczać
+- **Kategorie UI → allowed_types** — `CATEGORY_TYPES` mapuje checkbox na typy NER (np. "Kwoty" → `[AMOUNT, BANK_ACCOUNT]`). Funkcja zwraca `allowed_types` do post-hoc filtrowania
+- **Język promptu: polski** — prompt jest po polsku, system message po angielsku (Ollama convention). Bielik i Gemma4 dobrze reagują na tę kombinację
+- **Temperature 0.1** — niska losowość, deterministyczne wykrywanie. `num_predict: 4096` — duże okno odpowiedzi dla dokumentów z wieloma encjami
+
+**Przyszłość (externalizacja):** planowana zamiana `TYPE_DESCRIPTIONS` + stałego tekstu na pliki `.md` w katalogu `prompts/` — edytowalne bez rekompilacji, z możliwością wielu profili per typ dokumentu (patrz: PLAN.md → Profile anonimizacji)
+
 ### Szczegóły kroków:
 
 1. **Podział** dokumentu na segmenty ~3000 znaków (dwufazowy):
