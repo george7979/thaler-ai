@@ -23,6 +23,7 @@
 - [ ] Profile anonimizacji — wiele promptów per typ dokumentu (umowa, faktura, arkusz finansowy), wybór profilu w UI
 
 ### Opcjonalne:
+- [ ] Internacjonalizacja kodu — logi, komentarze, błędy backendowe na EN (UI i prompt NER zostają PL)
 - [ ] Drag & drop — pliki do okna aplikacji
 - [ ] Kopiowanie do schowka — zanonimizowany tekst
 - [ ] Przetwarzanie wsadowe — folder z dokumentami
